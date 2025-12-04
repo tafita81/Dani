@@ -19,11 +19,14 @@ export default function Home() {
             <a href="#estrategia" className="text-foreground hover:text-primary transition">
               Estratégia
             </a>
-            <a href="#recursos" className="text-foreground hover:text-primary transition">
-              Recursos
+            <a href="/docs" className="text-foreground hover:text-primary transition">
+              Documentação
             </a>
-            <a href="#download" className="text-foreground hover:text-primary transition">
-              Download
+            <a href="/casos-de-uso" className="text-foreground hover:text-primary transition">
+              Casos de Uso
+            </a>
+            <a href="/contato" className="text-foreground hover:text-primary transition">
+              Contato
             </a>
           </div>
         </div>
