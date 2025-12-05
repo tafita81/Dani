@@ -8,6 +8,8 @@ import Home from "@/pages/Home";
 import Documentation from "@/pages/Documentation";
 import Contact from "@/pages/Contact";
 import UseCases from "@/pages/UseCases";
+import Blog from "@/pages/Blog";
+import Pricing from "@/pages/Pricing";
 
 
 function Router() {
@@ -17,6 +19,8 @@ function Router() {
       <Route path={"/docs"} component={Documentation} />
       <Route path={"/contato"} component={Contact} />
       <Route path={"/casos-de-uso"} component={UseCases} />
+      <Route path={"/blog"} component={Blog} />
+      <Route path={"/precos"} component={Pricing} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

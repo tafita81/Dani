@@ -27,22 +27,34 @@ export default function Contact() {
     setLoading(true);
 
     try {
-      // Simular envio (em produção, isso seria uma chamada API real)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Enviar para Formspree
+      const response = await fetch("https://formspree.io/f/xyzabc123", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          subject: formData.subject,
+          message: formData.message,
+        }),
+      });
 
-      // Aqui você poderia integrar com um serviço real como:
-      // - Formspree (https://formspree.io)
-      // - EmailJS (https://www.emailjs.com)
-      // - Sua própria API backend
+      if (response.ok) {
+        console.log("Formulário enviado com sucesso:", formData);
+        setSubmitted(true);
+        setFormData({ name: "", email: "", phone: "", subject: "", message: "" });
 
-      console.log("Formulário enviado:", formData);
-      setSubmitted(true);
-      setFormData({ name: "", email: "", phone: "", subject: "", message: "" });
-
-      // Resetar mensagem após 5 segundos
-      setTimeout(() => setSubmitted(false), 5000);
+        // Resetar mensagem após 5 segundos
+        setTimeout(() => setSubmitted(false), 5000);
+      } else {
+        throw new Error("Erro ao enviar formulário");
+      }
     } catch (error) {
       console.error("Erro ao enviar formulário:", error);
+      alert("Erro ao enviar mensagem. Por favor, tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -238,6 +250,9 @@ export default function Contact() {
 
                   <p className="text-xs text-muted-foreground">
                     * Campos obrigatórios. Seus dados serão tratados conforme nossa política de privacidade.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    <strong>Nota:</strong> Configure seu próprio formulário Formspree em https://formspree.io e substitua a URL no código.
                   </p>
                 </form>
               )}
