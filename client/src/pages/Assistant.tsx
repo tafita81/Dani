@@ -173,8 +173,8 @@ export default function Assistant() {
   }, [messages]);
 
   return (
-    <div className="flex h-full gap-4">
-      <Card className="flex-1 flex flex-col">
+    <div className="flex flex-col lg:flex-row h-full gap-2 lg:gap-4">
+      <Card className="flex-1 flex flex-col order-2 lg:order-1">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <BotMessageSquare className="h-5 w-5" />
@@ -264,7 +264,9 @@ export default function Assistant() {
           </div>
         </CardContent>
       </Card>
-      <TherapistSuggestions suggestions={suggestions} isVisible={showSuggestions} />
+      <div className="order-1 lg:order-2 w-full lg:w-80">
+        <TherapistSuggestions suggestions={suggestions} isVisible={showSuggestions} />
+      </div>
     </div>
   );
 }

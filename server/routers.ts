@@ -997,6 +997,101 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
         return getFormsByCategory(input);
       }),
   }),
+
+  // ─── Assistente Carro ───
+  carAssistant: router({
+    startSession: protectedProcedure
+      .input(z.object({
+        patientId: z.number().optional(),
+        deviceType: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const sessionId = nanoid();
+        const now = new Date();
+        
+        // Registrar sessao no banco de dados
+        const session = await db.createCarSession({
+          userId: ctx.user.id,
+          patientId: input.patientId,
+          sessionStartTime: now,
+          status: "active",
+          isActive: true,
+          deviceType: input.deviceType || "unknown",
+          siriActivated: false,
+        });
+        
+        return { sessionId, startTime: now };
+      }),
+    
+    endSession: protectedProcedure
+      .input(z.object({
+        sessionId: z.string(),
+        transcription: z.string().optional(),
+        durationSeconds: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const endTime = new Date();
+        
+        // Atualizar sessao no banco de dados
+        const updated = await db.updateCarSession({
+          sessionId: input.sessionId,
+          sessionEndTime: endTime,
+          transcription: input.transcription,
+          durationSeconds: input.durationSeconds,
+          status: "completed",
+          isActive: false,
+        });
+        
+        return { success: true, endTime };
+      }),
+    
+    addTranscript: protectedProcedure
+      .input(z.object({
+        sessionId: z.string(),
+        phrase: z.string(),
+        confidence: z.number().optional(),
+        sentiment: z.enum(["positive", "neutral", "negative"]).optional(),
+        emotion: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Salvar transcrição em tempo real
+        const transcript = await db.createCarTranscript({
+          carSessionId: input.sessionId,
+          phrase: input.phrase,
+          confidence: input.confidence,
+          sentiment: input.sentiment,
+          emotion: input.emotion,
+          keywords: extractKeywords(input.phrase),
+        });
+        
+        return transcript;
+      }),
+    
+    getSessions: protectedProcedure.query(async ({ ctx }) => {
+      return db.getCarSessions(ctx.user.id);
+    }),
+    
+    getSessionDetails: protectedProcedure
+      .input(z.string())
+      .query(async ({ ctx, input }) => {
+        return db.getCarSessionDetails(ctx.user.id, input);
+      }),
+  }),
 });
+
+// Helper function para extrair keywords
+function extractKeywords(text: string): string[] {
+  const commonWords = new Set([
+    "o", "a", "de", "e", "eh", "em", "para", "com", "um", "uma",
+    "que", "por", "da", "do", "dos", "das", "a", "ao", "aos", "na",
+    "no", "nos", "nas", "se", "nao", "sim", "mais", "menos"
+  ]);
+  
+  return text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(word => word.length > 3 && !commonWords.has(word))
+    .slice(0, 10);
+}
 
 export type AppRouter = typeof appRouter;

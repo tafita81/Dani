@@ -972,3 +972,70 @@ export const continuousImprovementPlan = mysqlTable("continuousImprovementPlan",
 });
 export type ContinuousImprovementPlan = typeof continuousImprovementPlan.$inferSelect;
 export type InsertContinuousImprovementPlan = typeof continuousImprovementPlan.$inferInsert;
+
+// ─── Assistente Carro - Modo Hands-Free ───
+export const carSessionRecordings = mysqlTable("carSessionRecordings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  patientId: int("patientId"),
+  
+  // Sessão de escuta contínua
+  sessionStartTime: timestamp("sessionStartTime").notNull(),
+  sessionEndTime: timestamp("sessionEndTime"),
+  durationSeconds: int("durationSeconds"),
+  
+  // Áudio e transcrição
+  audioUrl: text("audioUrl"), // URL do áudio no S3
+  transcription: text("transcription"), // Transcrição completa
+  
+  // Análise IA
+  aiAnalysis: json("aiAnalysis"), // { suggestions: [], tone: "", keywords: [], emotions: [] }
+  suggestions: json("suggestions"), // Array de sugestões geradas
+  
+  // Feedback
+  voiceFeedbackGiven: boolean("voiceFeedbackGiven").default(false),
+  vibrationFeedback: boolean("vibrationFeedback").default(false),
+  
+  // Status
+  isActive: boolean("isActive").default(false),
+  status: mysqlEnum("carSessionStatus", ["active", "paused", "completed", "cancelled"]).default("completed").notNull(),
+  
+  // Siri Integration
+  siriActivated: boolean("siriActivated").default(false),
+  siriCommand: varchar("siriCommand", { length: 255 }), // "ativar assistente de carro" ou "desativar assistente de carro"
+  
+  // Localização (opcional)
+  latitude: decimal("latitude", { precision: 10, scale: 8 }),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }),
+  
+  // Metadata
+  deviceType: varchar("deviceType", { length: 64 }), // "iPhone", "Android"
+  browserAgent: text("browserAgent"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CarSessionRecording = typeof carSessionRecordings.$inferSelect;
+export type InsertCarSessionRecording = typeof carSessionRecordings.$inferInsert;
+
+// ─── Assistente Carro - Transcrições em Tempo Real ───
+export const carSessionTranscripts = mysqlTable("carSessionTranscripts", {
+  id: int("id").autoincrement().primaryKey(),
+  carSessionId: int("carSessionId").notNull(),
+  
+  // Frase transcrita
+  phrase: text("phrase").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  
+  // Análise da frase
+  confidence: decimal("confidence", { precision: 3, scale: 2 }), // 0.00 a 1.00
+  sentiment: mysqlEnum("sentiment", ["positive", "neutral", "negative"]),
+  emotion: varchar("emotion", { length: 64 }), // "alegria", "tristeza", "raiva", etc.
+  
+  // Palavras-chave detectadas
+  keywords: json("keywords"), // Array de palavras-chave
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CarSessionTranscript = typeof carSessionTranscripts.$inferSelect;
+export type InsertCarSessionTranscript = typeof carSessionTranscripts.$inferInsert;

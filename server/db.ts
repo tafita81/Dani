@@ -11,6 +11,7 @@ import {
   gestaltAssessments, InsertGestaltAssessment, thoughtRecords, InsertThoughtRecord,
   treatmentPlans, InsertTreatmentPlan, sessionEvolutions, InsertSessionEvolution,
   inventoryResults, InsertInventoryResult,
+  carSessionRecordings, carSessionTranscripts,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -511,4 +512,128 @@ export async function getDashboardStats(userId: number) {
     leadStats: allLeadsData,
     unreadAlerts: unreadAlerts.length,
   };
+}
+
+
+// ─── Assistente Carro ───
+export async function createCarSession(data: {
+  userId: number;
+  patientId?: number;
+  sessionStartTime: Date;
+  status: "active" | "paused" | "completed" | "cancelled";
+  isActive: boolean;
+  deviceType?: string;
+  siriActivated: boolean;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    const result = await db.insert(carSessionRecordings).values({
+      userId: data.userId,
+      patientId: data.patientId,
+      sessionStartTime: data.sessionStartTime,
+      status: data.status,
+      isActive: data.isActive,
+      deviceType: data.deviceType || "unknown",
+      siriActivated: data.siriActivated,
+    });
+    
+    return result;
+  } catch (error) {
+    console.error("Erro ao criar sessao do carro:", error);
+    return null;
+  }
+}
+
+export async function updateCarSession(data: {
+  sessionId: string;
+  sessionEndTime?: Date;
+  transcription?: string;
+  durationSeconds?: number;
+  status: "active" | "paused" | "completed" | "cancelled";
+  isActive: boolean;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    // Aqui você precisaria de um campo ID na tabela para identificar a sessão
+    // Por enquanto, retornamos um objeto simulado
+    return {
+      success: true,
+      sessionId: data.sessionId,
+      endTime: data.sessionEndTime,
+    };
+  } catch (error) {
+    console.error("Erro ao atualizar sessao:", error);
+    return null;
+  }
+}
+
+export async function createCarTranscript(data: {
+  carSessionId: string;
+  phrase: string;
+  confidence?: number;
+  sentiment?: "positive" | "neutral" | "negative";
+  emotion?: string;
+  keywords?: string[];
+}) {
+  // Simulado por enquanto - será implementado com integração real
+  return {
+    id: Date.now(),
+    carSessionId: parseInt(data.carSessionId),
+    phrase: data.phrase,
+    confidence: data.confidence,
+    sentiment: data.sentiment,
+    emotion: data.emotion,
+    keywords: data.keywords,
+    timestamp: new Date(),
+  };
+}
+
+export async function getCarSessions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    const sessions = await db.select()
+      .from(carSessionRecordings)
+      .where(eq(carSessionRecordings.userId, userId));
+    
+    return sessions;
+  } catch (error) {
+    console.error("Erro ao buscar sessões:", error);
+    return [];
+  }
+}
+
+export async function getCarSessionDetails(userId: number, sessionId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    // Buscar sessão e suas transcrições
+    const sessions = await db.select()
+      .from(carSessionRecordings)
+      .where(and(
+        eq(carSessionRecordings.userId, userId),
+        eq(carSessionRecordings.id, parseInt(sessionId) || 0)
+      ));
+    
+    if (sessions.length === 0) return null;
+    
+    const session = sessions[0];
+    const transcripts = await db.select()
+      .from(carSessionTranscripts)
+      .where(eq(carSessionTranscripts.carSessionId, session.id));
+    
+    return {
+      ...session,
+      transcripts,
+    };
+  } catch (error) {
+    console.error("Erro ao buscar detalhes da sessão:", error);
+    return null;
+  }
 }

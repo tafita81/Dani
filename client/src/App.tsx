@@ -23,6 +23,7 @@ const InstagramManager = lazy(() => import("./pages/InstagramManager"));
 
 const Landing = lazy(() => import("./pages/Landing"));
 const BookingPublic = lazy(() => import("./pages/BookingPublic"));
+const CarAssistant = lazy(() => import("./pages/CarAssistant"));
 
 function LoadingFallback() {
   return (
@@ -70,9 +71,12 @@ function Router() {
       <Route path="/agendar">
         <Suspense fallback={<LoadingFallback />}><BookingPublic /></Suspense>
       </Route>
-      {/* Exclusive AI Assistant route */}
+      {/* Exclusive AI Assistant routes */}
       <Route path="/assistente-ia">
         <Suspense fallback={<LoadingFallback />}><Assistant /></Suspense>
+      </Route>
+      <Route path="/assistente-carro">
+        <Suspense fallback={<LoadingFallback />}><CarAssistant /></Suspense>
       </Route>
       {/* Dashboard routes */}
       <Route path="/app/:rest*" component={DashboardRoutes} />
