@@ -1095,3 +1095,5 @@ function extractKeywords(text: string): string[] {
 }
 
 export type AppRouter = typeof appRouter;
+
+    // Procedures adicionadas serão aqui
