@@ -926,6 +926,8 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
       return igm.schedulePostsForWeek(ctx.user.id, igConfig.config as igm.InstagramConfig);
     }),
   }),
+
+  // ─── Smart Booking (Agendamento Inteligente) ───
 });
 
 export type AppRouter = typeof appRouter;

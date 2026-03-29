@@ -20,6 +20,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const LeadsCRM = lazy(() => import("./pages/LeadsCRM"));
 const LiveSession = lazy(() => import("./pages/LiveSession"));
 const InstagramManager = lazy(() => import("./pages/InstagramManager"));
+
 const Landing = lazy(() => import("./pages/Landing"));
 const BookingPublic = lazy(() => import("./pages/BookingPublic"));
 
@@ -37,6 +38,7 @@ function DashboardRoutes() {
       <Suspense fallback={<LoadingFallback />}>
         <Switch>
           <Route path="/app" component={Home} />
+
           <Route path="/app/agenda" component={Agenda} />
           <Route path="/app/pacientes" component={Patients} />
           <Route path="/app/pacientes/:id" component={PatientDetail} />

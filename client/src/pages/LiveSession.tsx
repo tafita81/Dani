@@ -1,4 +1,3 @@
-import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +10,7 @@ import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
 import { Mic, MicOff, Radio, Save, Brain, FileText, Clock, Pause, Play, Square } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { trpc } from "@/lib/trpc";
 
 export default function LiveSession() {
   const { patientId } = useParams<{ patientId: string }>();

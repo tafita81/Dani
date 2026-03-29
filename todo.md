@@ -260,3 +260,49 @@
 - [ ] Implementar AR para visualização de Esquemas Emocionais (300-500 consultas/mês)
 - [ ] Atualizar README.md com as 5 inovações
 - [ ] Sincronizar tudo com repositório Dani
+
+
+## Dashboard de Métricas (NOVO)
+- [ ] Criar página Dashboard.tsx com layout de gráficos
+- [ ] Implementar gráfico de Pacientes por Origem (pizza/donut)
+- [ ] Implementar gráfico de Taxa de Conversão de Leads (funil/barras)
+- [ ] Implementar gráfico de Engagement Instagram (linha/área)
+- [ ] Implementar gráfico de Progresso Clínico por Abordagem Terapêutica (barras)
+- [ ] Criar procedimento tRPC para buscar métricas de pacientes
+- [ ] Criar procedimento tRPC para buscar métricas de leads
+- [ ] Criar procedimento tRPC para buscar métricas de Instagram
+- [ ] Criar procedimento tRPC para buscar progresso clínico
+- [ ] Integrar gráficos com dados em tempo real
+- [ ] Adicionar filtros por período (hoje, semana, mês, ano)
+- [ ] Adicionar cards de resumo (total pacientes, leads, conversão %)
+- [ ] Exportar relatórios em PDF
+
+## Agendamento Automático via IA (NOVO)
+- [ ] Integração com Outlook Calendar API (OAuth2)
+- [ ] Buscar horários disponíveis do calendário Outlook
+- [ ] Treinar assistente IA para reconhecer pedidos de agendamento
+- [ ] IA sugere 3 horários disponíveis quando paciente/lead pede para agendar
+- [ ] Implementar confirmação de agendamento via chat
+- [ ] Criar evento no Outlook Calendar automaticamente
+- [ ] Enviar confirmação de agendamento via WhatsApp/Telegram
+- [ ] Enviar arquivo .ics para o paciente adicionar ao seu calendário
+- [ ] Lembrete automático 24h antes da consulta
+- [ ] Permitir reagendamento via IA
+- [ ] Cancelamento de consulta via IA com atualização do calendário
+- [ ] Histórico de agendamentos sugeridos pela IA
+
+
+## Agendamento Inteligente com Detecção de Paciente (NOVO)
+- [ ] Corrigir erro no routers.ts (booking router duplicado)
+- [ ] Implementar validação de conflitos de horário (PREVENIR DOUBLE-BOOKING)
+- [ ] Criar formulário de agendamento público com validação de nome e telefone com DDD
+- [ ] Implementar máscara de telefone (XX) XXXXX-XXXX
+- [ ] Criar procedimento tRPC para buscar paciente por telefone
+- [ ] Criar procedimento tRPC para criar/atualizar paciente
+- [ ] Criar procedimento tRPC para agendar consulta com detecção automática de paciente
+- [ ] Integrar agendamento com Outlook Calendar
+- [ ] Enviar confirmação de agendamento via WhatsApp/SMS
+- [ ] Enviar arquivo .ics para o paciente
+- [ ] Lembrete automático 24h antes da consulta
+- [ ] Página de agendamento público com seleção de horários
+- [ ] Integrar com Assistente IA para sugerir horários quando paciente pedir
