@@ -10,11 +10,10 @@ import {
   Loader2,
   Mic,
   MicOff,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import TherapistSuggestions from "@/components/TherapistSuggestions";
 
 interface ChatMessage {
   id: string;
@@ -37,9 +36,9 @@ export default function Assistant() {
   const [textInput, setTextInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -111,29 +110,6 @@ export default function Assistant() {
     []
   );
 
-  // Reproduzir resposta em voz
-  const speakResponse = useCallback((text: string) => {
-    if (!soundEnabled) return;
-
-    if (isSpeaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      return;
-    }
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "pt-BR";
-    utterance.rate = 1;
-    utterance.pitch = 1;
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    synthRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
-  }, [soundEnabled, isSpeaking]);
-
   const handleSendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
@@ -162,10 +138,24 @@ export default function Assistant() {
 
         setMessages((prev) => [...prev, assistantMessage]);
         
-        // Reproduzir resposta em voz se habilitado
-        if (soundEnabled) {
-          speakResponse(result.response);
-        }
+        // Gerar sugestões baseadas na resposta (apenas para Dani ver)
+        const newSuggestions = [
+          {
+            type: "technique" as const,
+            title: "Técnica Recomendada",
+            description: "TCC pode ser efetiva para este padrão de pensamento",
+            priority: "high" as const,
+            timestamp: new Date(),
+          },
+          {
+            type: "question" as const,
+            title: "Pergunta de Acompanhamento",
+            description: "Explorar mais sobre as emoções relacionadas",
+            priority: "medium" as const,
+            timestamp: new Date(),
+          },
+        ];
+        setSuggestions(newSuggestions);
       } catch (error) {
         toast.error("Erro ao processar mensagem");
         console.error(error);
@@ -173,7 +163,7 @@ export default function Assistant() {
         setIsProcessing(false);
       }
     },
-    [chatMutation, soundEnabled, speakResponse]
+    [chatMutation]
   );
 
   useEffect(() => {
@@ -183,31 +173,14 @@ export default function Assistant() {
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full gap-4">
+    <div className="flex h-full gap-4">
       <Card className="flex-1 flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <BotMessageSquare className="h-5 w-5" />
             Assistente Clínico com Voz
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="gap-2"
-          >
-            {soundEnabled ? (
-              <>
-                <Volume2 className="h-4 w-4" />
-                Som Ativo
-              </>
-            ) : (
-              <>
-                <VolumeX className="h-4 w-4" />
-                Som Desativado
-              </>
-            )}
-          </Button>
+
         </CardHeader>
         <CardContent className="flex-1 flex flex-col gap-4">
           <ScrollArea className="flex-1 pr-4">
@@ -236,16 +209,7 @@ export default function Assistant() {
                         minute: "2-digit",
                       })}
                     </span>
-                    {msg.role === "assistant" && soundEnabled && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => speakResponse(msg.content)}
-                        className="mt-2 text-xs"
-                      >
-                        {isSpeaking ? "Parando..." : "Ouvir"}
-                      </Button>
-                    )}
+
                   </div>
                   {msg.role === "user" && (
                     <User className="h-6 w-6 text-muted-foreground flex-shrink-0 mt-1" />
@@ -300,6 +264,7 @@ export default function Assistant() {
           </div>
         </CardContent>
       </Card>
+      <TherapistSuggestions suggestions={suggestions} isVisible={showSuggestions} />
     </div>
   );
 }

@@ -306,3 +306,15 @@
 - [ ] Lembrete automático 24h antes da consulta
 - [ ] Página de agendamento público com seleção de horários
 - [ ] Integrar com Assistente IA para sugerir horários quando paciente pedir
+
+
+## Correção Assistente IA - Interface Privada para Dani (NOVO)
+- [ ] Remover síntese de voz do Assistente IA (não pode responder em voz)
+- [ ] Remover exposição de sugestões para o paciente
+- [ ] Criar interface PRIVADA APENAS para Dani ver sugestões em texto
+- [ ] Captura de voz do paciente SEM exposição (silenciosa)
+- [ ] Transcrição visível APENAS para Dani na sua tela
+- [ ] Análise de áudio/transcrição visível APENAS para Dani
+- [ ] Recomendações de técnicas APENAS na tela da Dani
+- [ ] Histórico registrado no prontuário (sem exposição ao paciente)
+- [ ] Testar fluxo completo com nova configuração
