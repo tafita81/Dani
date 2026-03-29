@@ -930,6 +930,73 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
 
   // ─── Recomendação Inteligente de Técnicas ───
   technique: techniqueRouter,
+
+  // ─── Gerenciamento de Respostas de Formulários ───
+  formResponses: router({
+    saveResponse: protectedProcedure
+      .input(
+        z.object({
+          patientId: z.string(),
+          formId: z.string(),
+          formName: z.string(),
+          technique: z.enum(["TCC", "Esquema", "Gestalt", "Geral"]),
+          responses: z.record(z.string(), z.any()),
+          totalScore: z.number().optional(),
+          interpretation: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { createFormResponse } = await import("./formResponseManager");
+        return createFormResponse(
+          input.patientId,
+          input.formId,
+          input.formName,
+          input.technique,
+          input.responses,
+          input.totalScore,
+          input.interpretation
+        );
+      }),
+
+    getPatientResponses: protectedProcedure
+      .input(z.object({ patientId: z.string(), formId: z.string().optional() }))
+      .query(async ({ input }) => {
+        return [];
+      }),
+
+    shouldRetakeForm: protectedProcedure
+      .input(z.object({ patientId: z.string(), formId: z.string() }))
+      .query(async ({ input }) => {
+        const { shouldRetakeForm } = await import("./formResponseManager");
+        return shouldRetakeForm(Date.now(), input.formId);
+      }),
+  }),
+
+  // ─── Formulários Psicológicos Validados ───
+  forms: router({
+    getAllForms: publicProcedure.query(async () => {
+      const { getAllForms } = await import("./psychologicalForms");
+      return getAllForms();
+    }),
+    getFormsByTechnique: publicProcedure
+      .input(z.enum(["TCC", "Esquema", "Gestalt", "Geral"]))
+      .query(async ({ input }) => {
+        const { getFormsByTechnique } = await import("./psychologicalForms");
+        return getFormsByTechnique(input);
+      }),
+    getFormById: publicProcedure
+      .input(z.string())
+      .query(async ({ input }) => {
+        const { getFormById } = await import("./psychologicalForms");
+        return getFormById(input);
+      }),
+    getFormsByCategory: publicProcedure
+      .input(z.string())
+      .query(async ({ input }) => {
+        const { getFormsByCategory } = await import("./psychologicalForms");
+        return getFormsByCategory(input);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
