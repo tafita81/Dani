@@ -11,6 +11,7 @@ import * as gcal from "./googleCalendar";
 import * as ocal from "./outlookCalendar";
 import * as igm from "./instagramManager";
 import { nanoid } from "nanoid";
+import techniqueRouter from "./techniqueRecommender";
 
 export const appRouter = router({
   system: systemRouter,
@@ -927,7 +928,8 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
     }),
   }),
 
-  // ─── Smart Booking (Agendamento Inteligente) ───
+  // ─── Recomendação Inteligente de Técnicas ───
+  technique: techniqueRouter,
 });
 
 export type AppRouter = typeof appRouter;
