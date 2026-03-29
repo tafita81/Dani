@@ -220,7 +220,7 @@ export default function InstagramManager() {
 
               {getGrowthStrategy.data && (
                 <div className="p-4 rounded-lg bg-muted text-sm whitespace-pre-wrap">
-                  {getGrowthStrategy.data}
+                  {typeof getGrowthStrategy.data === 'string' ? getGrowthStrategy.data : JSON.stringify(getGrowthStrategy.data)}
                 </div>
               )}
             </CardContent>
@@ -246,7 +246,7 @@ export default function InstagramManager() {
 
               {getContentIdeas.data && (
                 <div className="p-4 rounded-lg bg-muted text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
-                  {getContentIdeas.data}
+                  {typeof getContentIdeas.data === 'string' ? getContentIdeas.data : JSON.stringify(getContentIdeas.data)}
                 </div>
               )}
             </CardContent>

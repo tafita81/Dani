@@ -36,18 +36,18 @@ function DashboardRoutes() {
     <DashboardLayout>
       <Suspense fallback={<LoadingFallback />}>
         <Switch>
-          <Route path="/" component={Home} />
-          <Route path="/agenda" component={Agenda} />
-          <Route path="/pacientes" component={Patients} />
-          <Route path="/pacientes/:id" component={PatientDetail} />
-          <Route path="/assistente" component={Assistant} />
-          <Route path="/mensagens" component={Messages} />
-          <Route path="/documentos" component={Documents} />
-          <Route path="/alertas" component={Alerts} />
-          <Route path="/configuracoes" component={Settings} />
-          <Route path="/crm" component={LeadsCRM} />
-          <Route path="/instagram" component={InstagramManager} />
-          <Route path="/sessao-ao-vivo/:patientId" component={LiveSession} />
+          <Route path="/app" component={Home} />
+          <Route path="/app/agenda" component={Agenda} />
+          <Route path="/app/pacientes" component={Patients} />
+          <Route path="/app/pacientes/:id" component={PatientDetail} />
+          <Route path="/app/assistente" component={Assistant} />
+          <Route path="/app/mensagens" component={Messages} />
+          <Route path="/app/documentos" component={Documents} />
+          <Route path="/app/alertas" component={Alerts} />
+          <Route path="/app/configuracoes" component={Settings} />
+          <Route path="/app/crm" component={LeadsCRM} />
+          <Route path="/app/instagram" component={InstagramManager} />
+          <Route path="/app/sessao-ao-vivo/:patientId" component={LiveSession} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>
