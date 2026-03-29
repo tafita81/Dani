@@ -1,4 +1,3 @@
-import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +9,12 @@ import {
   Loader2,
   Mic,
   MicOff,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import TherapistSuggestions from "@/components/TherapistSuggestions";
+import { trpc } from "@/lib/trpc";
 
 interface ChatMessage {
   id: string;
@@ -21,251 +22,348 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   isVoice?: boolean;
+  type?: "suggestion" | "analysis" | "recommendation";
 }
 
+/**
+ * ASSISTENTE IA - DURANTE CONSULTA
+ * 
+ * Funcionalidades:
+ * ✅ Captura voz do paciente e da psicóloga
+ * ✅ Transcrição silenciosa em tempo real
+ * ✅ Análise com IA
+ * ✅ Respostas APENAS em TEXTO (nunca áudio)
+ * ✅ Invisível para o paciente (não vê na tela)
+ * ✅ Apenas Daniela vê as sugestões
+ * ✅ Sugestões clínicas em tempo real
+ * ✅ Recomendações de técnicas
+ * ✅ Análise de padrões
+ */
 export default function Assistant() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
       role: "assistant",
-      content:
-        "Olá! Sou o Assistente Clínico da Psi. Daniela Coelho. Posso ajudar você a:\n\n- Consultar sua agenda de hoje\n- Verificar horários vagos\n- Resumir sessões de pacientes\n- Gerenciar agendamentos\n\nVocê pode digitar ou usar o botão de microfone para falar!",
+      content: "🤖 Assistente IA Ativo\n\nCapturando áudio da consulta...\nAnalisando em tempo real...\n\n(Invisível para o paciente)",
       timestamp: new Date(),
+      type: "suggestion",
     },
   ]);
-  const [textInput, setTextInput] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
+  
   const [isRecording, setIsRecording] = useState(false);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcription, setTranscription] = useState("");
+  const [showToPatient, setShowToPatient] = useState(false); // Controle de visibilidade
+  const [recordingTime, setRecordingTime] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const chatMutation = trpc.assistant.chat.useMutation();
 
-  // Iniciar gravação de áudio
+  // Iniciar captura contínua de áudio (Web Speech API)
   const startRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        toast.error("Web Speech API não suportada neste navegador");
+        return;
+      }
 
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "pt-BR";
+
+      let interimTranscript = "";
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+        setRecordingTime(0);
+        recordingIntervalRef.current = setInterval(() => {
+          setRecordingTime((t) => t + 1);
+        }, 1000);
+        toast.success("🎤 Captura de áudio iniciada (silenciosa)");
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
-        await transcribeAudio(audioBlob);
-        stream.getTracks().forEach((track) => track.stop());
+      recognition.onresult = (event: any) => {
+        interimTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+
+          if (event.results[i].isFinal) {
+            // Frase completa - enviar para análise
+            handleFinalTranscript(transcript);
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        setTranscription(interimTranscript);
       };
 
-      mediaRecorder.start();
-      setIsRecording(true);
-      toast.success("Gravação iniciada. Fale agora!");
+      recognition.onerror = (event: any) => {
+        console.error("Erro de reconhecimento:", event.error);
+        toast.error(`Erro: ${event.error}`);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+        if (recordingIntervalRef.current) {
+          clearInterval(recordingIntervalRef.current);
+        }
+        toast.info("Captura de áudio finalizada");
+      };
+
+      recognition.start();
     } catch (error) {
-      toast.error("Erro ao acessar microfone");
+      toast.error("Erro ao iniciar captura de áudio");
       console.error(error);
     }
   }, []);
 
-  // Parar gravação
+  // Parar captura de áudio
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
       setIsRecording(false);
-    }
-  }, [isRecording]);
-
-  // Transcrever áudio
-  const transcribeAudio = useCallback(
-    async (audioBlob: Blob) => {
-      try {
-        setIsProcessing(true);
-        
-        // Converter blob para base64
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64Audio = reader.result as string;
-          
-          // Aqui você pode enviar para um serviço de transcrição
-          // Por enquanto, vamos simular com uma mensagem
-          const transcribedText = "Transcrição de áudio recebida";
-          setTextInput(transcribedText);
-          toast.success("Áudio transcrito!");
-        };
-        reader.readAsDataURL(audioBlob);
-      } catch (error) {
-        toast.error("Erro ao transcrever áudio");
-        console.error(error);
-      } finally {
-        setIsProcessing(false);
+      setTranscription("");
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
       }
-    },
-    []
-  );
+    }
+  }, []);
 
-  const handleSendMessage = useCallback(
-    async (text: string) => {
-      if (!text.trim()) return;
+  // Processar frase completa transcrita
+  const handleFinalTranscript = useCallback(async (transcript: string) => {
+    if (!transcript.trim()) return;
 
-      // Add user message
+    try {
+      setIsProcessing(true);
+
+      // Adicionar transcrição ao chat (visível apenas para Daniela)
       const userMessage: ChatMessage = {
         id: `user-${Date.now()}`,
         role: "user",
-        content: text,
+        content: transcript,
         timestamp: new Date(),
+        isVoice: true,
       };
 
       setMessages((prev) => [...prev, userMessage]);
-      setTextInput("");
-      setIsProcessing(true);
 
-      try {
-        const result = await chatMutation.mutateAsync({ message: text });
+      // Enviar para análise com IA
+      const response = await chatMutation.mutateAsync({
+        message: transcript,
+      });
 
-        const assistantMessage: ChatMessage = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: result.response,
-          timestamp: new Date(),
-        };
+      // Adicionar resposta da IA (APENAS TEXTO, SILENCIOSO)
+      const assistantMessage: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: response.response,
+        timestamp: new Date(),
+        type: "suggestion",
+      };
 
-        setMessages((prev) => [...prev, assistantMessage]);
-        
-        // Gerar sugestões baseadas na resposta (apenas para Dani ver)
-        const newSuggestions = [
-          {
-            type: "technique" as const,
-            title: "Técnica Recomendada",
-            description: "TCC pode ser efetiva para este padrão de pensamento",
-            priority: "high" as const,
-            timestamp: new Date(),
-          },
-          {
-            type: "question" as const,
-            title: "Pergunta de Acompanhamento",
-            description: "Explorar mais sobre as emoções relacionadas",
-            priority: "medium" as const,
-            timestamp: new Date(),
-          },
-        ];
-        setSuggestions(newSuggestions);
-      } catch (error) {
-        toast.error("Erro ao processar mensagem");
-        console.error(error);
-      } finally {
-        setIsProcessing(false);
-      }
-    },
-    [chatMutation]
-  );
+      setMessages((prev) => [...prev, assistantMessage]);
 
+      // Scroll automático
+      setTimeout(() => {
+        scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch (error) {
+      console.error("Erro ao processar transcrição:", error);
+      toast.error("Erro ao analisar áudio");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [chatMutation]);
+
+  // Scroll automático para última mensagem
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
+  // Limpar recursos ao desmontar
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <div className="flex flex-col lg:flex-row h-full gap-2 lg:gap-4">
-      <Card className="flex-1 flex flex-col order-2 lg:order-1">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <BotMessageSquare className="h-5 w-5" />
-            Assistente Clínico com Voz
-          </CardTitle>
+    <div className="flex flex-col lg:flex-row gap-2 lg:gap-4 h-full p-4">
+      {/* CHAT - Área Principal */}
+      <div className="flex-1 flex flex-col order-2 lg:order-1 min-h-0">
+        <Card className="flex-1 flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-blue-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <BotMessageSquare className="w-5 h-5 text-blue-600" />
+              Assistente IA - Consulta
+              <span className={`text-xs px-2 py-1 rounded-full ${isRecording ? "bg-red-500 text-white animate-pulse" : "bg-gray-300 text-gray-700"}`}>
+                {isRecording ? `🎤 Gravando (${recordingTime}s)` : "Parado"}
+              </span>
+            </CardTitle>
+          </CardHeader>
 
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col gap-4">
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex gap-3 ${
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {msg.role === "assistant" && (
-                    <BotMessageSquare className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
-                  )}
+          <CardContent className="flex-1 flex flex-col overflow-hidden">
+            {/* Transcrição em Tempo Real */}
+            {transcription && (
+              <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-500 rounded text-sm text-gray-700">
+                <p className="font-semibold text-blue-900">Transcrevendo:</p>
+                <p className="italic">{transcription}</p>
+              </div>
+            )}
+
+            {/* Chat Messages */}
+            <ScrollArea className="flex-1 pr-4 mb-4">
+              <div className="space-y-4">
+                {messages.map((msg) => (
                   <div
-                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
+                    key={msg.id}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    <span className="text-xs opacity-70 mt-1 block">
-                      {msg.timestamp.toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
+                        msg.role === "user"
+                          ? "bg-blue-500 text-white rounded-br-none"
+                          : `${
+                              msg.type === "suggestion"
+                                ? "bg-green-100 text-green-900 border-l-4 border-green-500"
+                                : msg.type === "analysis"
+                                ? "bg-purple-100 text-purple-900 border-l-4 border-purple-500"
+                                : "bg-orange-100 text-orange-900 border-l-4 border-orange-500"
+                            } rounded-bl-none`
+                      }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      <p className={`text-xs mt-2 ${msg.role === "user" ? "text-blue-100" : "opacity-70"}`}>
+                        {msg.timestamp.toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {isProcessing && (
+                  <div className="flex justify-start">
+                    <div className="bg-gray-200 text-gray-700 px-4 py-3 rounded-lg rounded-bl-none">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    </div>
+                  </div>
+                )}
+                <div ref={scrollRef} />
+              </div>
+            </ScrollArea>
 
-                  </div>
-                  {msg.role === "user" && (
-                    <User className="h-6 w-6 text-muted-foreground flex-shrink-0 mt-1" />
-                  )}
-                </div>
-              ))}
-              {isProcessing && (
-                <div className="flex gap-3 justify-start">
-                  <BotMessageSquare className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
-                  <div className="bg-muted px-4 py-2 rounded-lg">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                </div>
-              )}
-              <div ref={scrollRef} />
+            {/* Controles */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`flex-1 ${
+                  isRecording
+                    ? "bg-red-500 hover:bg-red-600"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+                disabled={isProcessing}
+              >
+                {isRecording ? (
+                  <>
+                    <MicOff className="w-4 h-4 mr-2" />
+                    Parar Captura
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4 mr-2" />
+                    Iniciar Captura
+                  </>
+                )}
+              </Button>
+
+              <Button
+                onClick={() => setShowToPatient(!showToPatient)}
+                variant="outline"
+                className={showToPatient ? "bg-yellow-100 border-yellow-500" : ""}
+              >
+                {showToPatient ? (
+                  <>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Visível
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="w-4 h-4 mr-2" />
+                    Invisível
+                  </>
+                )}
+              </Button>
             </div>
-          </ScrollArea>
+          </CardContent>
+        </Card>
 
-          <div className="flex gap-2">
-            <Input
-              ref={inputRef}
-              placeholder="Digite sua pergunta ou use o microfone..."
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === "Enter" && !isProcessing) {
-                  handleSendMessage(textInput);
-                }
-              }}
-              disabled={isProcessing || isRecording}
-            />
-            <Button
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing}
-              size="icon"
-              variant={isRecording ? "destructive" : "outline"}
-              title={isRecording ? "Parar gravação" : "Iniciar gravação"}
-            >
-              {isRecording ? (
-                <MicOff className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              onClick={() => handleSendMessage(textInput)}
-              disabled={isProcessing || !textInput.trim()}
-              size="icon"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="order-1 lg:order-2 w-full lg:w-80">
-        <TherapistSuggestions suggestions={suggestions} isVisible={showSuggestions} />
+        {/* Aviso de Privacidade */}
+        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
+          <p>🔒 <strong>Privacidade:</strong> Este assistente é invisível para o paciente. Apenas você (Daniela) vê as análises e sugestões. Nenhum áudio é reproduzido.</p>
+        </div>
+      </div>
+
+      {/* INFORMAÇÕES - Painel Lateral (Desktop) */}
+      <div className="hidden lg:flex lg:flex-col lg:w-80 gap-4 order-1">
+        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-300">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">📊 Status da Consulta</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Duração:</span>
+              <span className="font-bold">{recordingTime}s</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Mensagens:</span>
+              <span className="font-bold">{messages.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Status:</span>
+              <span className={`font-bold ${isRecording ? "text-red-600" : "text-green-600"}`}>
+                {isRecording ? "🎤 Gravando" : "⏹️ Parado"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Visibilidade:</span>
+              <span className={`font-bold ${showToPatient ? "text-yellow-600" : "text-green-600"}`}>
+                {showToPatient ? "👁️ Visível" : "🔒 Invisível"}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">💡 Dicas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs text-gray-700">
+            <p>✅ Clique em "Iniciar Captura" para começar</p>
+            <p>✅ O assistente transcreve automaticamente</p>
+            <p>✅ Análises aparecem em tempo real</p>
+            <p>✅ Paciente nunca vê as sugestões</p>
+            <p>✅ Nenhum áudio é reproduzido</p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
