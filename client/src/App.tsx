@@ -70,6 +70,10 @@ function Router() {
       <Route path="/agendar">
         <Suspense fallback={<LoadingFallback />}><BookingPublic /></Suspense>
       </Route>
+      {/* Exclusive AI Assistant route */}
+      <Route path="/assistente-ia">
+        <Suspense fallback={<LoadingFallback />}><Assistant /></Suspense>
+      </Route>
       {/* Dashboard routes */}
       <Route path="/app/:rest*" component={DashboardRoutes} />
     </Switch>
