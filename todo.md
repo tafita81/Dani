@@ -319,39 +319,32 @@
 - [ ] Histórico registrado no prontuário (sem exposição ao paciente)
 - [ ] Testar fluxo completo com nova configuração
 
-## Layout Responsivo (NOVO - 29/03/2026)
-- [x] Layout mobile-first com flex-col em mobile e lg:flex-row em desktop
-- [x] Painel de sugestões como botão flutuante em mobile
-- [x] Modal expansível do fundo da tela para sugestões em tablet
-- [x] Painel lateral fixo em desktop (≥1024px)
-- [x] Gaps responsivos (gap-2 mobile, gap-4 desktop)
-- [x] Sem quebras visuais ou overflow
-- [x] Testado em iPhone, Android, Tablet e Desktop
-
-## Assistente Carro - Modo Hands-Free (NOVO - 29/03/2026)
-- [x] Página /assistente-carro com interface minimalista
-- [x] Captura de áudio contínua com Web Speech API
-- [x] Indicador visual de status (verde = parado, vermelho pulsante = escutando)
-- [x] Transcrição em tempo real exibida na tela
-- [x] Text-to-speech para ler sugestões em voz alta
-- [x] Vibração do dispositivo para feedback (padrões realistas)
-- [x] Integração com Siri Shortcuts para ativar/desativar via voz
-- [x] Controles de Som e Vibração
-- [x] Painel de sugestões em tempo real
-- [x] Botão para voltar ao Assistente IA
-- [x] Tabelas de banco de dados (carSessionRecordings, carSessionTranscripts)
-- [x] Procedures tRPC para registrar sessões e transcrições
-- [x] Suporte a múltiplos dispositivos (iPhone, Android)
+## Assistente Carro - Modo Hands-Free (NOVO)
+- [x] Criar página /assistente-carro com interface minimalista
+- [x] Implementar captura de áudio contínua com Web Speech API
+- [x] Adicionar text-to-speech para ler sugestões em voz alta
+- [x] Implementar vibração do dispositivo para feedback
+- [x] Integrar Siri Shortcuts para ativar/desativar via voz
+- [x] Registrar dados em tempo real no banco de dados (estrutura)
 - [ ] Testar em iPhone com Siri
-- [ ] Integração com LLM para análise em tempo real
-- [ ] Dashboard de sessões do carro
-- [ ] Exportação de relatórios
+- [ ] Atualizar repositório GitHub com Assistente Carro
 
-## Análise Completa de Funcionalidades (NOVO - 29/03/2026)
-- [x] Documento com todas as 36 tabelas do banco de dados
-- [x] Lista de todos os procedures/routers disponíveis
-- [x] Capacidades de bloqueio/liberação de agenda
-- [x] Protocolos de pacientes implementados
-- [x] Busca em tempo real em todas as tabelas
-- [x] Exemplos de conversas IA em tempo real
-- [x] Próximas funcionalidades sugeridas
+
+## Assistente Carro - Debug e Integração Completa (NOVO)
+- [x] Debugar problema de renderização da página /assistente-carro (RESOLVIDO: mover para /app/assistente-carro)
+- [ ] Adicionar logging detalhado no ErrorBoundary
+- [ ] Testar CarAssistant.tsx em isolamento
+- [ ] Criar seed de dados de teste para 36 tabelas
+- [ ] Integrar Assistente Carro com todas as tabelas
+- [ ] Implementar busca em tempo real em todas as tabelas
+- [ ] Implementar análise de dados em tempo real
+- [ ] Testar funcionamento completo do Assistente Carro
+- [ ] Sincronizar tudo no repositório tafita81/Dani
+
+
+## Próximos Passos - Fase 2 (NOVO)
+- [ ] Integrar LLM para análise em tempo real das transcrições
+- [ ] Implementar notificações push para reagendamentos
+- [ ] Criar dashboard de análise de sessões do Assistente Carro
+- [ ] Testar todas as funcionalidades
+- [ ] Sincronizar com repositório tafita81/Dani

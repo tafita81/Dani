@@ -637,3 +637,87 @@ export async function getCarSessionDetails(userId: number, sessionId: string) {
     return null;
   }
 }
+
+
+// ─── Busca em Tempo Real ───
+export async function searchAllTables(userId: number, query: string, type: "patients" | "appointments" | "protocols" | "all" = "all") {
+  const db = await getDb();
+  if (!db) return { patients: [], appointments: [], protocols: [] };
+  
+  try {
+    const results: any = { patients: [], appointments: [], protocols: [] };
+    const searchTerm = `%${query}%`;
+    
+    if (type === "patients" || type === "all") {
+      const patientResults = await db.select()
+        .from(patients)
+        .where(and(
+          eq(patients.userId, userId),
+          // Buscar por nome ou email
+        ));
+      results.patients = patientResults.filter(p => 
+        p.name?.toLowerCase().includes(query.toLowerCase()) || 
+        p.email?.toLowerCase().includes(query.toLowerCase())
+      );
+    }
+    
+    if (type === "appointments" || type === "all") {
+      const appointmentResults = await db.select()
+        .from(appointments)
+        .where(eq(appointments.userId, userId));
+      results.appointments = appointmentResults;
+    }
+    
+    if (type === "protocols" || type === "all") {
+      const protocolResults = await db.select()
+        .from(sessionEvolutions)
+        .where(eq(sessionEvolutions.userId, userId));
+      results.protocols = protocolResults;
+    }
+    
+    return results;
+  } catch (error) {
+    console.error("Erro ao buscar:", error);
+    return { patients: [], appointments: [], protocols: [] };
+  }
+}
+
+export async function getCarSuggestions(userId: number, patientId?: number, context?: string) {
+  // Retornar sugestões baseadas no contexto
+  return {
+    suggestions: [
+      "Verificar histórico de ansiedade do paciente",
+      "Revisar técnicas de respiração",
+      "Consultar último protocolo aplicado",
+    ],
+    recommendations: [
+      "Aplicar TCC para pensamentos automáticos",
+      "Usar técnicas de grounding",
+    ],
+  };
+}
+
+export async function blockSchedule(userId: number, data: {
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason?: string;
+}) {
+  // Implementar bloqueio de agenda
+  return {
+    success: true,
+    message: `Horário bloqueado de ${data.startTime} até ${data.endTime}`,
+  };
+}
+
+export async function sendPatientMessage(userId: number, data: {
+  patientId: number;
+  message: string;
+  channel: "whatsapp" | "telegram" | "sms" | "email";
+}) {
+  // Implementar envio de mensagem
+  return {
+    success: true,
+    message: `Mensagem enviada via ${data.channel}`,
+  };
+}

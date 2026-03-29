@@ -24,6 +24,7 @@ const InstagramManager = lazy(() => import("./pages/InstagramManager"));
 const Landing = lazy(() => import("./pages/Landing"));
 const BookingPublic = lazy(() => import("./pages/BookingPublic"));
 const CarAssistant = lazy(() => import("./pages/CarAssistant"));
+const CarAnalyticsDashboard = lazy(() => import("./pages/CarAnalyticsDashboard"));
 
 function LoadingFallback() {
   return (
@@ -51,6 +52,8 @@ function DashboardRoutes() {
           <Route path="/app/crm" component={LeadsCRM} />
           <Route path="/app/instagram" component={InstagramManager} />
           <Route path="/app/sessao-ao-vivo/:patientId" component={LiveSession} />
+          <Route path="/app/assistente-carro" component={CarAssistant} />
+        <Route path="/app/analytics" component={CarAnalyticsDashboard} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>
@@ -74,9 +77,6 @@ function Router() {
       {/* Exclusive AI Assistant routes */}
       <Route path="/assistente-ia">
         <Suspense fallback={<LoadingFallback />}><Assistant /></Suspense>
-      </Route>
-      <Route path="/assistente-carro">
-        <Suspense fallback={<LoadingFallback />}><CarAssistant /></Suspense>
       </Route>
       {/* Dashboard routes */}
       <Route path="/app/:rest*" component={DashboardRoutes} />

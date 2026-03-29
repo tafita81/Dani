@@ -1061,7 +1061,7 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
           confidence: input.confidence,
           sentiment: input.sentiment,
           emotion: input.emotion,
-          keywords: extractKeywords(input.phrase),
+          keywords: input.phrase.split(/\s+/).slice(0, 5),
         });
         
         return transcript;
@@ -1076,24 +1076,18 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
       .query(async ({ ctx, input }) => {
         return db.getCarSessionDetails(ctx.user.id, input);
       }),
+    
+    search: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        type: z.enum(["patients", "appointments", "protocols", "all"]).optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const results = await db.searchAllTables(ctx.user.id, input.query, input.type || "all");
+        return results;
+      }),
   }),
 });
 
-// Helper function para extrair keywords
-function extractKeywords(text: string): string[] {
-  const commonWords = new Set([
-    "o", "a", "de", "e", "eh", "em", "para", "com", "um", "uma",
-    "que", "por", "da", "do", "dos", "das", "a", "ao", "aos", "na",
-    "no", "nos", "nas", "se", "nao", "sim", "mais", "menos"
-  ]);
-  
-  return text
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(word => word.length > 3 && !commonWords.has(word))
-    .slice(0, 10);
-}
 
 export type AppRouter = typeof appRouter;
-
-    // Procedures adicionadas serão aqui

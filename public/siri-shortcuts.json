@@ -1,0 +1,29 @@
+{
+  "shortcuts": [
+    {
+      "id": "activate_car_assistant",
+      "name": "Ativar Assistente de Carro",
+      "description": "Ativa o modo de escuta contínua do Assistente Carro",
+      "command": "ativar assistente de carro",
+      "url": "https://clinassist-dqdp2gmy.manus.space/assistente-carro?siri_command=ativar",
+      "icon": "🚗"
+    },
+    {
+      "id": "deactivate_car_assistant",
+      "name": "Desativar Assistente de Carro",
+      "description": "Desativa o modo de escuta contínua do Assistente Carro",
+      "command": "desativar assistente de carro",
+      "url": "https://clinassist-dqdp2gmy.manus.space/assistente-carro?siri_command=desativar",
+      "icon": "🛑"
+    }
+  ],
+  "instructions": {
+    "ios": "1. Abra a app 'Atalhos' no iPhone\n2. Toque em '+' para criar novo atalho\n3. Toque em 'Adicionar ação'\n4. Procure por 'Abrir URL'\n5. Cole a URL acima\n6. Nomeie como 'Ativar Assistente de Carro' ou 'Desativar Assistente de Carro'\n7. Toque em 'Concluído'\n8. Agora você pode dizer 'Ei Siri, Ativar Assistente de Carro'",
+    "siri_voice_commands": [
+      "Ativar Assistente de Carro",
+      "Desativar Assistente de Carro",
+      "Iniciar escuta",
+      "Parar escuta"
+    ]
+  }
+}
