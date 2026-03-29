@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1772293180935,
+      "tag": "0000_good_whirlwind",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1774752752226,
+      "tag": "0001_sticky_professor_monster",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774752802260,
+      "tag": "0002_lethal_king_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1774753245144,
+      "tag": "0003_graceful_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1774753600107,
+      "tag": "0004_deep_the_fallen",
+      "breakpoints": true
+    }
+  ]
+}

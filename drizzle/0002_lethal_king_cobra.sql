@@ -1,0 +1,1 @@
+ALTER TABLE `appointments` MODIFY COLUMN `apptSource` enum('manual','whatsapp','telegram','instagram','google_calendar','outlook_calendar','website') NOT NULL DEFAULT 'manual';
