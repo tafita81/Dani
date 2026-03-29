@@ -25,6 +25,7 @@ const Landing = lazy(() => import("./pages/Landing"));
 const BookingPublic = lazy(() => import("./pages/BookingPublic"));
 const CarAssistant = lazy(() => import("./pages/CarAssistant"));
 const CarAnalyticsDashboard = lazy(() => import("./pages/CarAnalyticsDashboard"));
+const PatientPortal = lazy(() => import("./pages/PatientPortal"));
 
 function LoadingFallback() {
   return (
@@ -53,7 +54,8 @@ function DashboardRoutes() {
           <Route path="/app/instagram" component={InstagramManager} />
           <Route path="/app/sessao-ao-vivo/:patientId" component={LiveSession} />
           <Route path="/app/assistente-carro" component={CarAssistant} />
-        <Route path="/app/analytics" component={CarAnalyticsDashboard} />
+          <Route path="/app/analytics" component={CarAnalyticsDashboard} />
+          <Route path="/app/portal-paciente" component={PatientPortal} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>

@@ -12,6 +12,16 @@ import * as ocal from "./outlookCalendar";
 import * as igm from "./instagramManager";
 import { nanoid } from "nanoid";
 import techniqueRouter from "./techniqueRecommender";
+import { analyzeSentimentRealTime, generateSentimentBasedRecommendations } from "./sentimentAnalysis";
+import { generateSessionReport } from "./reportGenerator";
+import {
+  blockTimeSlotOutlook,
+  unblockTimeSlotOutlook,
+  createAppointmentOutlook,
+  cancelAppointmentOutlook,
+  listOutlookEvents,
+  checkAvailabilityOutlook,
+} from "./outlookIntegration";
 
 export const appRouter = router({
   system: systemRouter,
@@ -1086,8 +1096,171 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
         const results = await db.searchAllTables(ctx.user.id, input.query, input.type || "all");
         return results;
       }),
+    }),
+
+  // ─── Sentiment Analysis (Assistente IA) ───
+  sentiment: router({
+    analyze: protectedProcedure
+      .input(z.object({
+        transcription: z.string(),
+        patientName: z.string().optional(),
+        mainComplaint: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return analyzeSentimentRealTime(input.transcription, {
+          patientName: input.patientName || "Paciente",
+          mainComplaint: input.mainComplaint || "",
+          sessionHistory: [],
+        });
+      }),
+    
+    getRecommendations: protectedProcedure
+      .input(z.object({
+        sentimentScore: z.number(),
+        emotionalStates: z.array(z.object({ emotion: z.string(), intensity: z.number(), confidence: z.number().optional() })),
+        treatmentApproach: z.string(),
+      }))
+      .query(async ({ input }) => {
+        return generateSentimentBasedRecommendations(
+          {
+            overallSentiment: input.sentimentScore > 0.3 ? "positive" : input.sentimentScore < -0.3 ? "negative" : "neutral",
+            sentimentScore: input.sentimentScore,
+            emotionalStates: input.emotionalStates.map(e => ({ ...e, confidence: e.confidence || 0.8 })),
+            emotionalShifts: [],
+            keyPhrases: [],
+            riskIndicators: [],
+            positiveIndicators: [],
+            sessionMood: { start: "", current: "", trajectory: "stable" },
+          },
+          input.treatmentApproach
+        );
+      }),
+  }),
+
+  // ─── Outlook Calendar Integration ───
+  outlook: router({
+    blockTimeSlot: protectedProcedure
+      .input(z.object({
+        accessToken: z.string(),
+        startTime: z.date(),
+        endTime: z.date(),
+        reason: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        return blockTimeSlotOutlook(
+          { accessToken: input.accessToken, userEmail: "" },
+          input.startTime,
+          input.endTime,
+          input.reason
+        );
+      }),
+    
+    unblockTimeSlot: protectedProcedure
+      .input(z.object({
+        accessToken: z.string(),
+        eventId: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        return unblockTimeSlotOutlook(
+          { accessToken: input.accessToken, userEmail: "" },
+          input.eventId
+        );
+      }),
+    
+    createAppointment: protectedProcedure
+      .input(z.object({
+        accessToken: z.string(),
+        patientName: z.string(),
+        patientEmail: z.string(),
+        startTime: z.date(),
+        endTime: z.date(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return createAppointmentOutlook(
+          { accessToken: input.accessToken, userEmail: "" },
+          input.patientName,
+          input.patientEmail,
+          input.startTime,
+          input.endTime,
+          input.notes
+        );
+      }),
+    
+    cancelAppointment: protectedProcedure
+      .input(z.object({
+        accessToken: z.string(),
+        eventId: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        return cancelAppointmentOutlook(
+          { accessToken: input.accessToken, userEmail: "" },
+          input.eventId
+        );
+      }),
+    
+    listEvents: protectedProcedure
+      .input(z.object({
+        accessToken: z.string(),
+        startDate: z.date(),
+        endDate: z.date(),
+      }))
+      .query(async ({ input }) => {
+        return listOutlookEvents(
+          { accessToken: input.accessToken, userEmail: "" },
+          input.startDate,
+          input.endDate
+        );
+      }),
+    
+    checkAvailability: protectedProcedure
+      .input(z.object({
+        accessToken: z.string(),
+        startDate: z.date(),
+        endDate: z.date(),
+        durationMinutes: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return checkAvailabilityOutlook(
+          { accessToken: input.accessToken, userEmail: "" },
+          input.startDate,
+          input.endDate,
+          input.durationMinutes
+        );
+      }),
+  }),
+
+  // ─── Report Generation ───
+  reports: router({
+    generateSession: protectedProcedure
+      .input(z.object({
+        patientName: z.string(),
+        sessionDate: z.date(),
+        sessionDuration: z.number(),
+        sessionNotes: z.string(),
+        transcription: z.string(),
+        clinicalInsights: z.array(z.string()),
+        suggestedTechniques: z.array(z.string()),
+        emotionalState: z.string(),
+        riskLevel: z.enum(["low", "medium", "high"]),
+        nextSteps: z.array(z.string()),
+        therapistNotes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return generateSessionReport({
+          patientName: input.patientName,
+          sessionDate: input.sessionDate,
+          sessionDuration: input.sessionDuration,
+          sessionNotes: input.sessionNotes,
+          transcription: input.transcription,
+          clinicalInsights: input.clinicalInsights,
+          suggestedTechniques: input.suggestedTechniques,
+          emotionalState: input.emotionalState,
+          riskLevel: input.riskLevel,
+          nextSteps: input.nextSteps,
+          therapistNotes: input.therapistNotes,
+        });
+      }),
   }),
 });
-
-
 export type AppRouter = typeof appRouter;

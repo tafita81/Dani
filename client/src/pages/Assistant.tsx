@@ -22,7 +22,12 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   isVoice?: boolean;
-  type?: "suggestion" | "analysis" | "recommendation";
+  type?: "suggestion" | "analysis" | "recommendation" | "sentiment";
+  sentiment?: {
+    overallSentiment: string;
+    emotionalStates: Array<{ emotion: string; intensity: number }>;
+    riskIndicators: Array<{ indicator: string; severity: string }>;
+  };
 }
 
 /**
