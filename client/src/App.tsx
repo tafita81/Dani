@@ -26,6 +26,10 @@ const BookingPublic = lazy(() => import("./pages/BookingPublic"));
 const CarAssistant = lazy(() => import("./pages/CarAssistant"));
 const CarAnalyticsDashboard = lazy(() => import("./pages/CarAnalyticsDashboard"));
 const PatientPortal = lazy(() => import("./pages/PatientPortal"));
+const LGPDComplianceDashboard = lazy(() => import("./pages/LGPDComplianceDashboard"));
+const MetricsDashboard = lazy(() => import("./pages/MetricsDashboard"));
+const AIAutoScheduling = lazy(() => import("./pages/AIAutoScheduling"));
+const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
 
 function LoadingFallback() {
   return (
@@ -56,6 +60,10 @@ function DashboardRoutes() {
           <Route path="/app/assistente-carro" component={CarAssistant} />
           <Route path="/app/analytics" component={CarAnalyticsDashboard} />
           <Route path="/app/portal-paciente" component={PatientPortal} />
+          <Route path="/app/conformidade-lgpd" component={LGPDComplianceDashboard} />
+          <Route path="/app/metricas" component={MetricsDashboard} />
+          <Route path="/app/agendamento-ia" component={AIAutoScheduling} />
+          <Route path="/app/notificacoes" component={NotificationSettings} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>

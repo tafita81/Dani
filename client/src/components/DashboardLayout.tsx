@@ -35,6 +35,10 @@ import {
   Activity,
   TrendingUp,
   Instagram,
+  Shield,
+  BarChart3,
+  Zap,
+  Volume2,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -53,6 +57,10 @@ const menuItems = [
   { icon: Bell, label: "Alertas", path: "/alertas" },
   { icon: TrendingUp, label: "CRM Vendas", path: "/crm" },
   { icon: Instagram, label: "Instagram", path: "/instagram" },
+  { icon: Shield, label: "Conformidade LGPD", path: "/conformidade-lgpd" },
+  { icon: BarChart3, label: "Metricas", path: "/metricas" },
+  { icon: Zap, label: "Agendamento IA", path: "/agendamento-ia" },
+  { icon: Volume2, label: "Notificacoes", path: "/notificacoes" },
   { icon: Settings, label: "Configuracoes", path: "/configuracoes" },
 ];
 
