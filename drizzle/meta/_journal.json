@@ -36,6 +36,13 @@
       "when": 1774753600107,
       "tag": "0004_deep_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1774764411297,
+      "tag": "0005_lean_ken_ellis",
+      "breakpoints": true
     }
   ]
 }
