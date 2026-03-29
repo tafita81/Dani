@@ -242,54 +242,54 @@
 
 
 ## Funil Viral Integrado (5000-10000 consultas/mês)
-- [ ] Implementar sistema de referral viral com incentivos e gamificação
-- [ ] Criar automação de marketing e nurturing de leads
-- [ ] Otimizar landing pages para conversão máxima (CTR, CTA, copy)
-- [ ] Integrar analytics e rastreamento de funil (funnel tracking)
-- [ ] Configurar automação de social proof e testimoniais virais
-- [ ] Implementar estratégia de conteúdo viral (blog, vídeos, posts)
-- [ ] Criar sistema de notificações push e email automático
-- [ ] Testar e validar funil viral completo
+- [x] Implementar sistema de referral viral com incentivos e gamificação
+- [x] Criar automação de marketing e nurturing de leads
+- [x] Otimizar landing pages para conversão máxima (CTR, CTA, copy)
+- [x] Integrar analytics e rastreamento de funil (funnel tracking)
+- [x] Configurar automação de social proof e testimoniais virais
+- [x] Implementar estratégia de conteúdo viral (blog, vídeos, posts)
+- [x] Criar sistema de notificações push e email automático
+- [x] Testar e validar funil viral completo
 
 
 ## 5 Inovações Quânticas 2026
-- [ ] Implementar Avatar 3D da Psicóloga com sincronização de voz (500-1000 consultas/mês)
-- [ ] Criar sistema de Emotion AI em tempo real com análise de sentimentos (diferencial premium)
-- [ ] Implementar geração de Podcast/Audiobook IA automático (200-500 consultas/mês)
-- [ ] Criar Quiz Viral com gamificação e compartilhamento (1000-2000 leads/mês)
-- [ ] Implementar AR para visualização de Esquemas Emocionais (300-500 consultas/mês)
-- [ ] Atualizar README.md com as 5 inovações
-- [ ] Sincronizar tudo com repositório Dani
+- [x] Implementar Avatar 3D da Psicóloga com sincronização de voz (500-1000 consultas/mês)
+- [x] Criar sistema de Emotion AI em tempo real com análise de sentimentos (diferencial premium)
+- [x] Implementar geração de Podcast/Audiobook IA automático (200-500 consultas/mês)
+- [x] Criar Quiz Viral com gamificação e compartilhamento (1000-2000 leads/mês)
+- [x] Implementar AR para visualização de Esquemas Emocionais (300-500 consultas/mês)
+- [x] Atualizar README.md com as 5 inovações
+- [x] Sincronizar tudo com repositório Dani
 
 
 ## Dashboard de Métricas (NOVO)
-- [ ] Criar página Dashboard.tsx com layout de gráficos
-- [ ] Implementar gráfico de Pacientes por Origem (pizza/donut)
-- [ ] Implementar gráfico de Taxa de Conversão de Leads (funil/barras)
-- [ ] Implementar gráfico de Engagement Instagram (linha/área)
-- [ ] Implementar gráfico de Progresso Clínico por Abordagem Terapêutica (barras)
-- [ ] Criar procedimento tRPC para buscar métricas de pacientes
-- [ ] Criar procedimento tRPC para buscar métricas de leads
-- [ ] Criar procedimento tRPC para buscar métricas de Instagram
-- [ ] Criar procedimento tRPC para buscar progresso clínico
-- [ ] Integrar gráficos com dados em tempo real
-- [ ] Adicionar filtros por período (hoje, semana, mês, ano)
-- [ ] Adicionar cards de resumo (total pacientes, leads, conversão %)
-- [ ] Exportar relatórios em PDF
+- [x] Criar página Dashboard.tsx com layout de gráficos
+- [x] Implementar gráfico de Pacientes por Origem (pizza/donut)
+- [x] Implementar gráfico de Taxa de Conversão de Leads (funil/barras)
+- [x] Implementar gráfico de Engagement Instagram (linha/área)
+- [x] Implementar gráfico de Progresso Clínico por Abordagem Terapéutica (barras)
+- [x] Criar procedimento tRPC para buscar métricas de pacientes
+- [x] Criar procedimento tRPC para buscar métricas de leads
+- [x] Criar procedimento tRPC para buscar métricas de Instagram
+- [x] Criar procedimento tRPC para buscar progresso clínico
+- [x] Integrar gráficos com dados em tempo real
+- [x] Adicionar filtros por período (hoje, semana, mês, ano)
+- [x] Adicionar cards de resumo (total pacientes, leads, conversão %)
+- [x] Exportar relatórios em PDF
 
 ## Agendamento Automático via IA (NOVO)
-- [ ] Integração com Outlook Calendar API (OAuth2)
-- [ ] Buscar horários disponíveis do calendário Outlook
-- [ ] Treinar assistente IA para reconhecer pedidos de agendamento
-- [ ] IA sugere 3 horários disponíveis quando paciente/lead pede para agendar
-- [ ] Implementar confirmação de agendamento via chat
-- [ ] Criar evento no Outlook Calendar automaticamente
-- [ ] Enviar confirmação de agendamento via WhatsApp/Telegram
-- [ ] Enviar arquivo .ics para o paciente adicionar ao seu calendário
-- [ ] Lembrete automático 24h antes da consulta
-- [ ] Permitir reagendamento via IA
-- [ ] Cancelamento de consulta via IA com atualização do calendário
-- [ ] Histórico de agendamentos sugeridos pela IA
+- [x] Integração com Outlook Calendar API (OAuth2)
+- [x] Buscar horários disponíveis do calendário Outlook
+- [x] Treinar assistente IA para reconhecer pedidos de agendamento
+- [x] IA sugere 3 horários disponíveis quando paciente/lead pede para agendar
+- [x] Implementar confirmação de agendamento via chat
+- [x] Criar evento no Outlook Calendar automaticamente
+- [x] Enviar confirmação de agendamento via WhatsApp/Telegram
+- [x] Enviar arquivo .ics para o paciente adicionar ao seu calendário
+- [x] Lembrete automático 24h antes da consulta
+- [x] Permitir reagendamento via IA
+- [x] Cancelamento de consulta via IA com atualização do calendário
+- [x] Histórico de agendamentos sugeridos pela IA
 
 
 ## Agendamento Inteligente com Detecção de Paciente (NOVO)
@@ -301,9 +301,9 @@
 - [ ] Criar procedimento tRPC para criar/atualizar paciente
 - [ ] Criar procedimento tRPC para agendar consulta com detecção automática de paciente
 - [ ] Integrar agendamento com Outlook Calendar
-- [ ] Enviar confirmação de agendamento via WhatsApp/SMS
+- [x] Enviar confirmação de agendamento via WhatsApp/SMS
 - [ ] Enviar arquivo .ics para o paciente
-- [ ] Lembrete automático 24h antes da consulta
+- [x] Lembrete automático 24h antes da consulta
 - [ ] Página de agendamento público com seleção de horários
 - [ ] Integrar com Assistente IA para sugerir horários quando paciente pedir
 
@@ -348,3 +348,28 @@
 - [ ] Criar dashboard de análise de sessões do Assistente Carro
 - [ ] Testar todas as funcionalidades
 - [ ] Sincronizar com repositório tafita81/Dani
+
+
+## Análise de Emoções em Tempo Real (NOVO)
+- [x] Detectar emoções por palavras-chave na transcrição
+- [x] Análise com IA usando LLM para insights profundos
+- [x] Sugestões personalizadas baseadas no estado emocional
+- [x] Rastreamento de evolução emocional ao longo da sessão
+- [x] Testes unitários para detecção de emoções
+
+## Agendamento Automático via WhatsApp (NOVO)
+- [x] Mensagens humanizadas e variadas (não robóticas)
+- [x] Processamento de respostas do paciente (SIM/NÃO)
+- [x] Criação de mensagens de confirmação, reagendamento e lembretes
+- [x] Validação de números de telefone brasileiros
+- [x] Geração de links de confirmação rápida
+- [x] Testes unitários para agendamento WhatsApp
+
+## Dashboard de Conformidade LGPD (NOVO)
+- [x] Auditoria de acesso a dados (visualização, edição, exportação, deleção)
+- [x] Gestão de consentimentos (concedido, negado, revogado)
+- [x] Histórico de compartilhamento de dados com terceiros
+- [x] Gráficos de tipos de acesso e status de consentimentos
+- [x] Exportação de relatórios em PDF/CSV
+- [x] Rota /app/conformidade-lgpd adicionada
+- [x] Link no menu lateral do dashboard

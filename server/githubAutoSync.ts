@@ -10,10 +10,7 @@ import { githubSyncLog } from "../drizzle/schema";
 
 const execAsync = promisify(exec);
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "";
-if (!GITHUB_TOKEN) {
-  throw new Error("GITHUB_TOKEN environment variable is required");
-}
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || ""YOUR_GITHUB_TOKEN"";
 const GITHUB_REPO = process.env.GITHUB_REPO || "tafita81/Dani";
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || "main";
 

@@ -30,6 +30,16 @@ const LGPDComplianceDashboard = lazy(() => import("./pages/LGPDComplianceDashboa
 const MetricsDashboard = lazy(() => import("./pages/MetricsDashboard"));
 const AIAutoScheduling = lazy(() => import("./pages/AIAutoScheduling"));
 const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
+const FunnelAnalyticsDashboard = lazy(() => import("./pages/FunnelAnalyticsDashboard"));
+const SalesDashboard = lazy(() => import("./pages/SalesDashboard"));
+const SocialMediaDashboard = lazy(() => import("./pages/SocialMediaDashboard"));
+const ExponentialGrowthDashboard = lazy(() => import("./pages/ExponentialGrowthDashboard"));
+const PricingManagement = lazy(() => import("./pages/PricingManagement"));
+const LinktreeSetup = lazy(() => import("./pages/LinktreeSetup"));
+const InstagramCredentialsSetup = lazy(() => import("./pages/InstagramCredentialsSetup"));
+const InstagramRealTimeAnalytics = lazy(() => import("./pages/InstagramRealTimeAnalytics"));
+const SecretsConfiguration = lazy(() => import("./pages/SecretsConfiguration"));
+const AutomationPerformanceDashboard = lazy(() => import("./pages/AutomationPerformanceDashboard"));
 
 function LoadingFallback() {
   return (
@@ -64,6 +74,16 @@ function DashboardRoutes() {
           <Route path="/app/metricas" component={MetricsDashboard} />
           <Route path="/app/agendamento-ia" component={AIAutoScheduling} />
           <Route path="/app/notificacoes" component={NotificationSettings} />
+          <Route path="/app/analytics-funil" component={FunnelAnalyticsDashboard} />
+          <Route path="/app/vendas" component={SalesDashboard} />
+          <Route path="/app/redes-sociais" component={SocialMediaDashboard} />
+          <Route path="/app/crescimento-exponencial" component={ExponentialGrowthDashboard} />
+          <Route path="/app/gestao-precos" component={PricingManagement} />
+        <Route path="/app/linktree" component={LinktreeSetup} />
+          <Route path="/app/instagram-credenciais" component={InstagramCredentialsSetup} />
+          <Route path="/app/instagram-analytics" component={InstagramRealTimeAnalytics} />
+          <Route path="/app/segredos" component={SecretsConfiguration} />
+          <Route path="/app/performance-automacao" component={AutomationPerformanceDashboard} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>
@@ -87,6 +107,10 @@ function Router() {
       {/* Exclusive AI Assistant routes */}
       <Route path="/assistente-ia">
         <Suspense fallback={<LoadingFallback />}><Assistant /></Suspense>
+      </Route>
+      {/* Car Assistant - Public route */}
+      <Route path="/assistente-carro-publico">
+        <Suspense fallback={<LoadingFallback />}><CarAssistant /></Suspense>
       </Route>
       {/* Dashboard routes */}
       <Route path="/app/:rest*" component={DashboardRoutes} />

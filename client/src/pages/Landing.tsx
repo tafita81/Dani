@@ -48,8 +48,8 @@ export default function Landing() {
             <a href="#depoimentos" className="text-muted-foreground hover:text-foreground transition-colors">Depoimentos</a>
             <a href="#contato" className="text-muted-foreground hover:text-foreground transition-colors">Contato</a>
           </div>
-          <Button size="sm" onClick={() => setLocation("/agendar")} className="shadow-lg">
-            <Calendar className="h-4 w-4 mr-2" /> Agendar Consulta
+          <Button size="sm" disabled className="shadow-lg opacity-50 cursor-not-allowed">
+            <Calendar className="h-4 w-4 mr-2" /> Agendamentos em Breve
           </Button>
         </div>
       </nav>
@@ -74,8 +74,8 @@ export default function Landing() {
                 Um espaço seguro para seu autoconhecimento e transformação.
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
-                <Button size="lg" onClick={() => setLocation("/agendar")} className="shadow-xl text-base">
-                  <Calendar className="h-5 w-5 mr-2" /> Agendar Consulta
+                <Button size="lg" disabled className="shadow-xl text-base opacity-50 cursor-not-allowed">
+                  <Calendar className="h-5 w-5 mr-2" /> Agendamentos em Breve
                 </Button>
                 <Button size="lg" variant="outline" asChild>
                   <a href="https://wa.me/5500000000000" target="_blank" rel="noopener noreferrer" className="gap-2">
@@ -213,7 +213,7 @@ export default function Landing() {
             </a>
             <a href="https://t.me/psidanielacoelho" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-xl border hover:border-primary/30 hover:bg-accent/50 transition-all">
               <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center"><Send className="h-5 w-5 text-blue-600" /></div>
-              <div><p className="font-medium text-sm">Telegram</p><p className="text-xs text-muted-foreground">Agende por aqui</p></div>
+              <div><p className="font-medium text-sm">Telegram</p><p className="text-xs text-muted-foreground">Agendamentos em breve</p></div>
             </a>
             <a href="https://youtube.com/@psidanielacoelho" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-xl border hover:border-primary/30 hover:bg-accent/50 transition-all">
               <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center"><Youtube className="h-5 w-5 text-red-600" /></div>

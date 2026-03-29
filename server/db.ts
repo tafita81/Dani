@@ -57,6 +57,10 @@ export async function getPatients(userId: number) {
   const db = await getDb(); if (!db) return [];
   return db.select().from(patients).where(eq(patients.userId, userId)).orderBy(asc(patients.name));
 }
+export async function getAllPatients() {
+  const db = await getDb(); if (!db) return [];
+  return db.select().from(patients).orderBy(asc(patients.name));
+}
 export async function getPatientById(userId: number, id: number) {
   const db = await getDb(); if (!db) return null;
   const r = await db.select().from(patients).where(and(eq(patients.id, id), eq(patients.userId, userId))).limit(1);
@@ -134,6 +138,10 @@ export async function createSessionNote(data: InsertSessionNote) {
 export async function getSessionNotes(userId: number, patientId: number) {
   const db = await getDb(); if (!db) return [];
   return db.select().from(sessionNotes).where(and(eq(sessionNotes.userId, userId), eq(sessionNotes.patientId, patientId))).orderBy(desc(sessionNotes.createdAt));
+}
+export async function getAllSessionNotes() {
+  const db = await getDb(); if (!db) return [];
+  return db.select().from(sessionNotes).orderBy(desc(sessionNotes.createdAt));
 }
 export async function updateSessionNote(userId: number, id: number, data: Partial<InsertSessionNote>) {
   const db = await getDb(); if (!db) return;
@@ -720,4 +728,385 @@ export async function sendPatientMessage(userId: number, data: {
     success: true,
     message: `Mensagem enviada via ${data.channel}`,
   };
+}
+
+
+// ─── ANÁLISE AVANÇADA ───
+
+/**
+ * Pacientes sem sessão há X dias
+ */
+export async function getPatientsWithoutSessionInDays(days: number = 30) {
+  const db = await getDb(); if (!db) return [];
+  const allPatients = await getAllPatients();
+  const allSessions = await db.select().from(sessionNotes).orderBy(desc(sessionNotes.createdAt));
+  
+  const cutoffDate = Date.now() - (days * 24 * 60 * 60 * 1000);
+  
+  return allPatients.filter((patient: any) => {
+    const lastSession = allSessions.find((s: any) => s.patientId === patient.id);
+    if (!lastSession) return true; // Nunca teve sessão
+    return lastSession.createdAt.getTime() < cutoffDate;
+  });
+}
+
+/**
+ * Pacientes por abordagem terapêutica
+ */
+export async function getPatientsByApproach() {
+  const allPatients = await getAllPatients();
+  const approaches: Record<string, any[]> = {
+    tcc: [],
+    terapia_esquema: [],
+    gestalt: [],
+    integrativa: []
+  };
+  
+  allPatients.forEach((p: any) => {
+    const approach = p.primaryApproach || 'integrativa';
+    if (approaches[approach]) {
+      approaches[approach].push(p);
+    }
+  });
+  
+  return approaches;
+}
+
+/**
+ * Efetividade por abordagem (baseado em sessões e progresso)
+ */
+export async function getApproachEffectiveness() {
+  const approaches = await getPatientsByApproach();
+  const result: Record<string, any> = {};
+  
+  for (const [approach, patients] of Object.entries(approaches)) {
+    const totalSessions = (patients as any[]).reduce((sum, p) => sum + (p.totalSessions || 0), 0);
+    const activePatientsCount = (patients as any[]).filter((p: any) => p.status === 'active').length;
+    const avgSessions = patients.length > 0 ? totalSessions / patients.length : 0;
+    
+    result[approach] = {
+      totalPatients: patients.length,
+      activePatientsCount,
+      inactivePatientsCount: patients.length - activePatientsCount,
+      totalSessions,
+      avgSessionsPerPatient: avgSessions,
+      retentionRate: patients.length > 0 ? (activePatientsCount / patients.length) * 100 : 0,
+      patients: patients
+    };
+  }
+  
+  return result;
+}
+
+/**
+ * Paciente com maior progresso (mais sessões)
+ */
+export async function getMostProgressivePatient() {
+  const allPatients = await getAllPatients();
+  return allPatients.reduce((max: any, p: any) => 
+    (p.totalSessions > (max.totalSessions || 0)) ? p : max
+  );
+}
+
+/**
+ * Pacientes com mais agendamentos
+ */
+export async function getPatientsWithMostAppointments(limit: number = 5) {
+  const db = await getDb(); if (!db) return [];
+  const allPatients = await getAllPatients();
+  const allAppointments = await db.select().from(appointments);
+  
+  const patientAppointmentCount = allPatients.map((p: any) => ({
+    ...p,
+    appointmentCount: allAppointments.filter((a: any) => a.patientId === p.id).length
+  }));
+  
+  return patientAppointmentCount
+    .sort((a: any, b: any) => b.appointmentCount - a.appointmentCount)
+    .slice(0, limit);
+}
+
+/**
+ * Taxa de retenção geral
+ */
+export async function getRetentionRate() {
+  const allPatients = await getAllPatients();
+  const activeCount = allPatients.filter((p: any) => p.status === 'active').length;
+  const totalCount = allPatients.length;
+  
+  return {
+    totalPatients: totalCount,
+    activePatients: activeCount,
+    inactivePatients: totalCount - activeCount,
+    retentionRate: totalCount > 0 ? (activeCount / totalCount) * 100 : 0
+  };
+}
+
+/**
+ * Estatísticas gerais
+ */
+export async function getGeneralStatistics() {
+  const allPatients = await getAllPatients();
+  const db = await getDb(); if (!db) return null;
+  
+  const allSessions = await db.select().from(sessionNotes);
+  const allAppointments = await db.select().from(appointments);
+  const approaches = await getPatientsByApproach();
+  const retention = await getRetentionRate();
+  
+  const totalSessions = allPatients.reduce((sum: number, p: any) => sum + (p.totalSessions || 0), 0);
+  const avgSessionsPerPatient = allPatients.length > 0 ? totalSessions / allPatients.length : 0;
+  
+  return {
+    totalPatients: allPatients.length,
+    totalSessions,
+    totalAppointments: allAppointments.length,
+    avgSessionsPerPatient,
+    retentionRate: retention.retentionRate,
+    activePatients: retention.activePatients,
+    inactivePatients: retention.inactivePatients,
+    approachesSummary: Object.entries(approaches).map(([name, patients]) => ({
+      name,
+      count: (patients as any[]).length,
+      percentage: ((patients as any[]).length / allPatients.length) * 100
+    }))
+  };
+}
+
+/**
+ * Pacientes novos (últimos 30 dias)
+ */
+export async function getNewPatients(days: number = 30) {
+  const allPatients = await getAllPatients();
+  const cutoffDate = Date.now() - (days * 24 * 60 * 60 * 1000);
+  
+  return allPatients.filter((p: any) => 
+    new Date(p.createdAt).getTime() > cutoffDate
+  );
+}
+
+/**
+ * Pacientes com maior streak de sessões
+ */
+export async function getPatientsWithHighestStreak() {
+  const allPatients = await getAllPatients();
+  return allPatients
+    .sort((a: any, b: any) => (b.sessionStreak || 0) - (a.sessionStreak || 0))
+    .slice(0, 5);
+}
+
+
+// ─── INTEGRAÇÃO COMPLETA: AGENDAMENTOS + CONSULTAS + PROTOCOLOS + INDICADORES ───
+
+/**
+ * Obter histórico completo de um paciente (userId)
+ * Junta: agendamentos, sessões, protocolos, indicadores
+ */
+export async function getCompletePatientHistory(userId: number) {
+  const db = await getDb(); if (!db) return null;
+  
+  // Buscar paciente
+  const patient = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+  if (!patient || patient.length === 0) return null;
+  
+  const patientData = patient[0];
+  
+  // Buscar agendamentos
+  const patientAppointments = await db.select().from(appointments).where(eq(appointments.userId, userId));
+  
+  // Buscar sessões/consultas realizadas
+  const patientSessions = await db.select().from(sessionNotes).where(eq(sessionNotes.userId, userId));
+  
+  // Buscar anamnese (protocolo inicial)
+  const patientAnamnesis = await db.select().from(anamnesis).where(eq(anamnesis.userId, userId)).limit(1);
+  
+  // Buscar conceitos cognitivos (TCC)
+  const patientCognitive = await db.select().from(cognitiveConcepts).where(eq(cognitiveConcepts.userId, userId)).limit(1);
+  
+  // Buscar avaliação de esquemas (Terapia do Esquema)
+  const patientSchema = await db.select().from(schemaAssessments).where(eq(schemaAssessments.userId, userId)).limit(1);
+  
+  // Buscar avaliação Gestalt
+  const patientGestalt = await db.select().from(gestaltAssessments).where(eq(gestaltAssessments.userId, userId)).limit(1);
+  
+  // Buscar plano de tratamento
+  const patientTreatmentPlan = await db.select().from(treatmentPlans).where(eq(treatmentPlans.userId, userId)).limit(1);
+  
+  // Buscar evolução de sessões
+  const patientEvolutions = await db.select().from(sessionEvolutions).where(eq(sessionEvolutions.userId, userId));
+  
+  // Buscar registros de humor
+  const patientMoodEntries = await db.select().from(moodEntries).where(eq(moodEntries.userId, userId));
+  
+  return {
+    patient: patientData,
+    appointments: patientAppointments,
+    sessions: patientSessions,
+    protocols: {
+      anamnesis: patientAnamnesis?.[0] || null,
+      cognitive: patientCognitive?.[0] || null,
+      schema: patientSchema?.[0] || null,
+      gestalt: patientGestalt?.[0] || null,
+      treatmentPlan: patientTreatmentPlan?.[0] || null
+    },
+    evolutions: patientEvolutions,
+    moodEntries: patientMoodEntries
+  };
+}
+
+/**
+ * Calcular indicadores de progresso para um paciente
+ */
+export async function calculatePatientIndicators(userId: number) {
+  const db = await getDb(); if (!db) return null;
+  
+  const history = await getCompletePatientHistory(userId);
+  if (!history) return null;
+  
+  const patient = history.patient;
+  const sessions = history.sessions;
+  const appointments = history.appointments;
+  const moodEntries = history.moodEntries;
+  
+  // Indicador 1: Frequência de Sessões
+  const sessionFrequency = sessions.length > 0 
+    ? (sessions.length / ((Date.now() - new Date(patient.createdAt).getTime()) / (7 * 24 * 60 * 60 * 1000))).toFixed(2)
+    : 0;
+  
+  // Indicador 2: Taxa de Comparecimento
+  const completedAppointments = appointments.filter((a: any) => a.status === 'completed').length;
+  const attendanceRate = appointments.length > 0 
+    ? ((completedAppointments / appointments.length) * 100).toFixed(1)
+    : 0;
+  
+  // Indicador 3: Evolução de Humor (se houver registros)
+  let moodTrend = null;
+  if (moodEntries.length > 1) {
+    const firstMood = moodEntries[moodEntries.length - 1].mood || 0;
+    const lastMood = moodEntries[0].mood || 0;
+    moodTrend = lastMood - firstMood; // Positivo = melhora
+  }
+  
+  // Indicador 4: Adesão ao Tratamento
+  const daysSinceLastSession = sessions.length > 0 
+    ? Math.floor((Date.now() - new Date(sessions[0].createdAt).getTime()) / (24 * 60 * 60 * 1000))
+    : null;
+  
+  const adherence = daysSinceLastSession !== null && daysSinceLastSession < 14 ? 'Alta' : daysSinceLastSession !== null && daysSinceLastSession < 30 ? 'Média' : 'Baixa';
+  
+  // Indicador 5: Protocolos Preenchidos
+  const protocolsCompleted = Object.values(history.protocols).filter(p => p !== null).length;
+  
+  return {
+    userId,
+    patientName: patient.name,
+    indicators: {
+      sessionFrequency: `${sessionFrequency} sessões/semana`,
+      attendanceRate: `${attendanceRate}%`,
+      moodTrend: moodTrend ? (moodTrend > 0 ? `Melhora de ${moodTrend}` : `Piora de ${Math.abs(moodTrend)}`) : 'Sem dados',
+      adherence,
+      daysSinceLastSession,
+      protocolsCompleted
+    },
+    summary: {
+      totalSessions: sessions.length,
+      totalAppointments: appointments.length,
+      completedAppointments,
+      moodEntriesCount: moodEntries.length
+    }
+  };
+}
+
+/**
+ * Comparar indicadores entre múltiplos pacientes
+ */
+export async function comparePatientIndicators(userIds: number[]) {
+  const indicators = await Promise.all(
+    userIds.map(userId => calculatePatientIndicators(userId))
+  );
+  
+  return indicators.filter(ind => ind !== null);
+}
+
+/**
+ * Obter relatório completo de um paciente
+ */
+export async function getPatientCompleteReport(userId: number) {
+  const history = await getCompletePatientHistory(userId);
+  if (!history) return null;
+  
+  const indicators = await calculatePatientIndicators(userId);
+  
+  return {
+    patient: history.patient,
+    history,
+    indicators,
+    report: {
+      lastSession: history.sessions[0] || null,
+      nextAppointment: history.appointments.find((a: any) => a.startTime > Date.now()) || null,
+      protocolsStatus: Object.entries(history.protocols).map(([name, data]) => ({
+        name,
+        completed: data !== null,
+        date: data?.createdAt || null
+      })),
+      treatmentProgress: {
+        sessionsCompleted: history.sessions.length,
+        appointmentsScheduled: history.appointments.length,
+        protocolsCompleted: Object.values(history.protocols).filter(p => p !== null).length,
+        evolutionRecords: history.evolutions.length
+      }
+    }
+  };
+}
+
+/**
+ * Buscar todos os pacientes com seus indicadores
+ */
+export async function getAllPatientsWithIndicators() {
+  const allPatients = await getAllPatients();
+  
+  const patientsWithIndicators = await Promise.all(
+    allPatients.map(async (patient: any) => {
+      const indicators = await calculatePatientIndicators(patient.userId);
+      return {
+        ...patient,
+        indicators
+      };
+    })
+  );
+  
+  return patientsWithIndicators;
+}
+
+/**
+ * Filtrar pacientes por indicador
+ */
+export async function filterPatientsByIndicator(
+  indicatorType: 'adherence' | 'attendance' | 'mood' | 'frequency',
+  value: string | number
+) {
+  const allPatients = await getAllPatientsWithIndicators();
+  
+  return allPatients.filter((p: any) => {
+    if (!p.indicators) return false;
+    
+    switch (indicatorType) {
+      case 'adherence':
+        return p.indicators.indicators.adherence === value;
+      case 'attendance':
+        return parseFloat(p.indicators.indicators.attendanceRate) >= (value as number);
+      case 'mood':
+        return p.indicators.indicators.moodTrend && p.indicators.indicators.moodTrend.includes('Melhora');
+      case 'frequency':
+        return parseFloat(p.indicators.indicators.sessionFrequency) >= (value as number);
+      default:
+        return false;
+    }
+  });
+}
+
+// ─── Get ALL Appointments (sem filtro de userId) ───
+export async function getAllAppointments() {
+  const db = await getDb(); if (!db) return [];
+  return db.select().from(appointments).orderBy(asc(appointments.startTime));
 }

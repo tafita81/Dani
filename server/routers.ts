@@ -2,6 +2,8 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+
+export { publicProcedure, protectedProcedure, adminProcedure };
 import { z } from "zod";
 import * as db from "./db";
 import { invokeLLM } from "./_core/llm";
@@ -15,6 +17,12 @@ import techniqueRouter from "./techniqueRecommender";
 import { analyzeSentimentRealTime, generateSentimentBasedRecommendations } from "./sentimentAnalysis";
 import { generateSessionReport } from "./reportGenerator";
 import {
+  listPatientsProcedure,
+  processQuestionWithDataProcedure,
+} from "./databaseQueryProcedures";
+import { IntentRecognizer } from "./intentRecognizer";
+import { universalQuestionProcessorProcedure } from "./universalQuestionProcessor";
+import {
   blockTimeSlotOutlook,
   unblockTimeSlotOutlook,
   createAppointmentOutlook,
@@ -22,6 +30,7 @@ import {
   listOutlookEvents,
   checkAvailabilityOutlook,
 } from "./outlookIntegration";
+import { universalQuestionFixed } from "./universalQuestionFixed";
 
 export const appRouter = router({
   system: systemRouter,
@@ -348,8 +357,15 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Alerts ───
-  alerts: router({
+  // ─── AI Assistant (Car & Voice) ───
+  aiAssistant: router({
+    listPatients: listPatientsProcedure,
+    processQuestion: processQuestionWithDataProcedure,
+    universalQuestion: universalQuestionFixed,
+  }),
+
+  // ─── Reports ───
+  reports: router({
     list: protectedProcedure
       .input(z.object({ unreadOnly: z.boolean().optional() }).optional())
       .query(async ({ ctx, input }) => {
@@ -1231,7 +1247,7 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
   }),
 
   // ─── Report Generation ───
-  reports: router({
+  reportGeneration: router({
     generateSession: protectedProcedure
       .input(z.object({
         patientName: z.string(),

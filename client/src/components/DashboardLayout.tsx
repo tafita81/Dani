@@ -39,6 +39,8 @@ import {
   BarChart3,
   Zap,
   Volume2,
+  DollarSign,
+  Link2,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -59,8 +61,15 @@ const menuItems = [
   { icon: Instagram, label: "Instagram", path: "/instagram" },
   { icon: Shield, label: "Conformidade LGPD", path: "/conformidade-lgpd" },
   { icon: BarChart3, label: "Metricas", path: "/metricas" },
+  { icon: DollarSign, label: "Vendas", path: "/vendas" },
+  { icon: TrendingUp, label: "Redes Sociais", path: "/redes-sociais" },
+  { icon: TrendingUp, label: "Analytics Funil", path: "/analytics-funil" },
   { icon: Zap, label: "Agendamento IA", path: "/agendamento-ia" },
   { icon: Volume2, label: "Notificacoes", path: "/notificacoes" },
+  { icon: TrendingUp, label: "Crescimento Exponencial", path: "/crescimento-exponencial" },
+  { icon: DollarSign, label: "Gestão de Preços", path: "/gestao-precos" },
+  { icon: Link2, label: "Linktree", path: "/app/linktree" },
+  { icon: Activity, label: "Performance Automação", path: "/performance-automacao" },
   { icon: Settings, label: "Configuracoes", path: "/configuracoes" },
 ];
 
@@ -84,39 +93,10 @@ export default function DashboardLayout({
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) {
-    return <DashboardLayoutSkeleton />;
-  }
-
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-accent/30">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Activity className="h-8 w-8 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-center">
-              Assistente Clínico
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Plataforma inteligente para gestão de agenda, pacientes e automação
-              de atendimento para psicólogos e terapeutas.
-            </p>
-          </div>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            Entrar na plataforma
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Sem autenticação - tudo aberto para testes
+  // if (loading) {
+  //   return <DashboardLayoutSkeleton />;
+  // }
 
   return (
     <SidebarProvider
@@ -142,7 +122,7 @@ function DashboardLayoutContent({
   children,
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
-  const { user, logout } = useAuth();
+  // const { user, logout } = useAuth(); // Sem autenticação
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -151,7 +131,7 @@ function DashboardLayoutContent({
   const activeMenuItem = menuItems.find((item) => item.path === location);
   const isMobile = useIsMobile();
 
-  const { data: alertsData } = trpc.alerts.list.useQuery({ unreadOnly: true });
+  const { data: alertsData } = trpc.reports.list.useQuery({ unreadOnly: true });
   const unreadCount = alertsData?.length || 0;
 
   useEffect(() => {
@@ -257,24 +237,24 @@ function DashboardLayoutContent({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
+                  <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">
-                      {user?.name?.charAt(0).toUpperCase()}
+                      AC
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
+                      Assistente Clínico
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
+                      Teste
                     </p>
                   </div>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  onClick={logout}
+                  onClick={() => console.log('Logout desabilitado para testes')}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />

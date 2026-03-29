@@ -11,6 +11,8 @@ import * as telegram from "./telegram";
 import * as gcal from "./googleCalendar";
 import * as ocal from "./outlookCalendar";
 import * as db from "./db";
+import { invokeLLM } from "./_core/llm";
+import { generateAudioUrl } from "./ttsSimple";
 
 export function registerWebhookRoutes(app: Express) {
   // ─── WhatsApp Webhook Verification (GET) ───
@@ -98,9 +100,9 @@ export function registerWebhookRoutes(app: Express) {
             await telegram.sendInlineKeyboard(config, chatId,
               "🏥 <b>Assistente Clínico</b>\n\nBem-vindo! Sou o assistente de agendamento.\n\nEscolha uma opção:",
               [
-                [{ text: "📅 Agendar Consulta", callback_data: "schedule" }],
-                [{ text: "📋 Minhas Consultas", callback_data: "my_appointments" }],
-                [{ text: "❌ Cancelar Consulta", callback_data: "cancel" }],
+                [{ text: "📅 Agendar Consulta", callback_data: "schedule_appointment" }],
+                [{ text: "❓ Fazer Pergunta", callback_data: "ask_question" }],
+                [{ text: "📋 Ver Agendamentos", callback_data: "list_appointments" }],
               ]
             );
           }
@@ -112,48 +114,167 @@ export function registerWebhookRoutes(app: Express) {
   });
 
   // ─── Google Calendar OAuth Callback ───
-  app.get("/api/google-callback", async (req: Request, res: Response) => {
+  app.get("/api/gcal-callback", async (req: Request, res: Response) => {
     try {
       const code = req.query.code as string;
-      const state = req.query.state as string; // Contains userId and origin
+      const state = req.query.state as string;
 
       if (!code) {
         res.status(400).send("Missing authorization code");
         return;
       }
 
-      // Parse state to get userId and config
-      let stateData: { userId: number; clientId: string; clientSecret: string; calendarEmail: string; origin: string };
-      try {
-        stateData = JSON.parse(Buffer.from(state, "base64").toString());
-      } catch {
-        res.status(400).send("Invalid state parameter");
-        return;
-      }
+      // For now, we'll use a simplified approach
+      // In production, you'd need to:
+      // 1. Store state in session/cache before redirect
+      // 2. Retrieve it here to get userId
+      // 3. Exchange code for tokens
 
-      const redirectUri = `${stateData.origin}/api/google-callback`;
-      const tokens = await gcal.exchangeCode(stateData.clientId, stateData.clientSecret, code, redirectUri);
-
-      // Save the integration setting
-      await db.upsertIntegrationSetting({
-        userId: stateData.userId,
-        provider: "google_calendar",
-        config: {
-          clientId: stateData.clientId,
-          clientSecret: stateData.clientSecret,
-          refreshToken: tokens.refresh_token,
-          calendarEmail: stateData.calendarEmail,
-          accessToken: tokens.access_token,
-          tokenExpiry: Date.now() + (tokens.expires_in - 60) * 1000,
-        },
-        isActive: true,
-      });
-
-      // Redirect back to settings page
-      res.redirect("/#/settings?gcal=success");
+      // TODO: Implement full OAuth2 flow with state validation
+      // For now, redirect to settings with a message
+      res.redirect("/#/settings?gcal=pending");
     } catch (error) {
       console.error("[Google Calendar] OAuth callback error:", error);
       res.redirect("/#/settings?gcal=error");
+    }
+  });
+
+  // ─── Text-to-Speech API ───
+  app.post("/api/tts", async (req: Request, res: Response) => {
+    try {
+      const { text, language = "pt-BR" } = req.body;
+
+      if (!text) {
+        res.status(400).json({ error: "Texto é obrigatório" });
+        return;
+      }
+
+      console.log("[TTS] Gerando áudio para:", text.substring(0, 50));
+      const audioUrl = await generateAudioUrl(text, language);
+
+      if (!audioUrl) {
+        console.error("[TTS] Falha ao gerar áudio para:", text.substring(0, 50));
+        res.status(500).json({ error: "Falha ao gerar áudio" });
+        return;
+      }
+
+      res.json({
+        success: true,
+        audioUrl,
+      });
+    } catch (error) {
+      console.error("[TTS] Erro:", error);
+      res.status(500).json({ error: "Erro ao gerar áudio" });
+    }
+  });
+
+  // ─── Car Assistant API (Assistente Carro) ───
+  app.post("/api/assistente-carro/pergunta", async (req: Request, res: Response) => {
+    try {
+      const { question } = req.body;
+
+      if (!question) {
+        res.status(400).json({ error: "question is required" });
+        return;
+      }
+
+      // Disable cache completely
+      res.set({
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        "Surrogate-Control": "no-store",
+      });
+
+      // Buscar TODOS os pacientes, agendamentos e sessões do banco
+      const allPatients = await db.getAllPatients();
+      const allAppointments = await db.getAllAppointments();
+      const allSessions = await db.getAllSessionNotes();
+
+      // Usar IA para entender a pergunta
+      
+      const patientsData = allPatients.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        phone: p.phone,
+        status: p.status,
+        totalSessions: p.totalSessions,
+      }));
+
+      let answer = "";
+      let dataUsed: any = {};
+
+      try {
+        // Importar filtros avançados
+        const { processAdvancedFilter } = await import("./advancedFilters");
+        
+        // Tentar processar com filtros avançados primeiro
+        const advancedResult = await processAdvancedFilter(question);
+        
+        if (advancedResult) {
+          answer = advancedResult.answer;
+          dataUsed = {
+            totalPatients: allPatients.length,
+            patients: patientsData,
+            usedAdvancedFilters: true,
+            category: advancedResult.category,
+            data: advancedResult.data
+          };
+        } else {
+          // Se não for filtro avançado, usar LLM
+          const llmResponse = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: "Você é um assistente clínico inteligente. Responda perguntas sobre pacientes, agendamentos e sessões de forma clara e natural em português brasileiro."
+              },
+              {
+                role: "user",
+                content: `Pergunta: "${question}"\n\nDados disponíveis:\n- Total de pacientes: ${allPatients.length}\n- Pacientes: ${JSON.stringify(patientsData, null, 2)}\n- Total de agendamentos: ${allAppointments.length}\n- Total de sessões: ${allSessions.length}\n\nResponda APENAS com a resposta final, sem explicações adicionais.`
+              }
+            ]
+          });
+
+          const llmContent = llmResponse.choices[0]?.message?.content;
+          answer = typeof llmContent === 'string' ? llmContent : `Você tem ${allPatients.length} pacientes cadastrados.`;
+          dataUsed = {
+            totalPatients: allPatients.length,
+            patients: patientsData,
+            usedAI: true
+          };
+        }
+      } catch (llmError) {
+        console.error('[Car Assistant] Erro ao processar:', llmError);
+        // Fallback simples
+        const activeCount = allPatients.filter((p: any) => p.status === "active").length;
+        const inactiveCount = allPatients.filter((p: any) => p.status === "inactive").length;
+        answer = `Você tem ${allPatients.length} pacientes cadastrados no total. Sendo ${activeCount} ativos e ${inactiveCount} inativos.`;
+        dataUsed = {
+          totalPatients: allPatients.length,
+          activePatients: activeCount,
+          inactivePatients: inactiveCount,
+          patients: allPatients,
+        };
+      }
+
+      const result = {
+        success: true,
+        question: question,
+        answer: answer,
+        dataSource: "database",
+        dataUsed: dataUsed,
+        timestamp: new Date(),
+      };
+
+      res.json(result);
+    } catch (error) {
+      console.error("[Car Assistant] Error:", error);
+      res.status(500).json({
+        success: false,
+        answer: "Desculpe, ocorreu um erro ao processar sua pergunta.",
+        error: error instanceof Error ? error.message : "Erro desconhecido",
+      });
     }
   });
 

@@ -8,11 +8,11 @@ import { Bell, CheckCheck, Calendar, XCircle, MessageSquare, AlertTriangle, Info
 import { toast } from "sonner";
 
 export default function Alerts() {
-  const { data: alerts, isLoading, refetch } = trpc.alerts.list.useQuery();
-  const markReadMutation = trpc.alerts.markRead.useMutation();
-  const markAllReadMutation = trpc.alerts.markAllRead.useMutation();
+  const { data: alerts, isLoading, refetch } = trpc.reports.list.useQuery();
+  const markReadMutation = trpc.reports.markRead.useMutation();
+  const markAllReadMutation = trpc.reports.markAllRead.useMutation();
 
-  const unreadCount = alerts?.filter((a) => !a.isRead).length || 0;
+  const unreadCount = alerts?.filter((a: any) => !a.isRead).length || 0;
 
   const handleMarkRead = async (id: number) => {
     try {
@@ -90,7 +90,7 @@ export default function Alerts() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {alerts.map((alert) => (
+            {alerts.map((alert: any) => (
               <Card
                 key={alert.id}
                 className={`border-0 shadow-sm transition-all ${!alert.isRead ? "bg-primary/[0.02] ring-1 ring-primary/10" : ""}`}
