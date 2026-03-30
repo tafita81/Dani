@@ -147,41 +147,55 @@ function ScheduleSection() {
 }
 
 function FormsSection() {
+  const forms = [
+    {
+      id: "phq9",
+      name: "PHQ-9 (Depressão)",
+      status: "pendente",
+      dueDate: "31/03/2026",
+      description: "Avaliação de sintomas depressivos",
+    },
+    {
+      id: "gad7",
+      name: "GAD-7 (Ansiedade)",
+      status: "pendente",
+      dueDate: "31/03/2026",
+      description: "Avaliação de sintomas de ansiedade",
+    },
+    {
+      id: "schemas",
+      name: "Avaliação de Esquemas",
+      status: "completo",
+      dueDate: "28/03/2026",
+      description: "Identificação de padrões cognitivos",
+    },
+    {
+      id: "thoughts",
+      name: "Registro de Pensamentos",
+      status: "em_progresso",
+      dueDate: "30/03/2026",
+      description: "Monitoramento de pensamentos automáticos",
+    },
+  ];
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">Formulários Clínicos</h2>
+      <p className="text-gray-600 mb-6">
+        Responda aos formulários para acompanharmos sua evolução clínica
+      </p>
 
       <div className="space-y-4">
-        {[
-          {
-            name: "PHQ-9 (Depressão)",
-            status: "pendente",
-            dueDate: "31/03/2026",
-          },
-          {
-            name: "GAD-7 (Ansiedade)",
-            status: "pendente",
-            dueDate: "31/03/2026",
-          },
-          {
-            name: "Avaliação de Esquemas",
-            status: "completo",
-            dueDate: "28/03/2026",
-          },
-          {
-            name: "Registro de Pensamentos",
-            status: "em_progresso",
-            dueDate: "30/03/2026",
-          },
-        ].map((form, idx) => (
-          <Card key={idx} className="p-4 flex justify-between items-center">
-            <div>
+        {forms.map((form) => (
+          <Card key={form.id} className="p-4 flex justify-between items-center">
+            <div className="flex-1">
               <p className="font-semibold">{form.name}</p>
-              <p className="text-sm text-gray-600">Prazo: {form.dueDate}</p>
+              <p className="text-sm text-gray-600">{form.description}</p>
+              <p className="text-xs text-gray-500 mt-1">Prazo: {form.dueDate}</p>
             </div>
             <div className="flex items-center gap-3">
               <span
-                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                className={`px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap ${
                   form.status === "completo"
                     ? "bg-green-100 text-green-800"
                     : form.status === "em_progresso"
@@ -196,7 +210,7 @@ function FormsSection() {
                     : "Pendente"}
               </span>
               {form.status !== "completo" && (
-                <Button className="bg-blue-600 hover:bg-blue-700">
+                <Button className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
                   Responder
                 </Button>
               )}

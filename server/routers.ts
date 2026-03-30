@@ -31,9 +31,13 @@ import {
   checkAvailabilityOutlook,
 } from "./outlookIntegration";
 import { universalQuestionFixed } from "./universalQuestionFixed";
+import { carAssistantRouter } from "./routers/carAssistant";
+import { notificationsRouter } from "./routers/notifications";
 
 export const appRouter = router({
   system: systemRouter,
+  carAssistant: carAssistantRouter,
+  notifications: notificationsRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -1024,95 +1028,8 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
       }),
   }),
 
-  // ─── Assistente Carro ───
-  carAssistant: router({
-    startSession: protectedProcedure
-      .input(z.object({
-        patientId: z.number().optional(),
-        deviceType: z.string().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const sessionId = nanoid();
-        const now = new Date();
-        
-        // Registrar sessao no banco de dados
-        const session = await db.createCarSession({
-          userId: ctx.user.id,
-          patientId: input.patientId,
-          sessionStartTime: now,
-          status: "active",
-          isActive: true,
-          deviceType: input.deviceType || "unknown",
-          siriActivated: false,
-        });
-        
-        return { sessionId, startTime: now };
-      }),
-    
-    endSession: protectedProcedure
-      .input(z.object({
-        sessionId: z.string(),
-        transcription: z.string().optional(),
-        durationSeconds: z.number().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const endTime = new Date();
-        
-        // Atualizar sessao no banco de dados
-        const updated = await db.updateCarSession({
-          sessionId: input.sessionId,
-          sessionEndTime: endTime,
-          transcription: input.transcription,
-          durationSeconds: input.durationSeconds,
-          status: "completed",
-          isActive: false,
-        });
-        
-        return { success: true, endTime };
-      }),
-    
-    addTranscript: protectedProcedure
-      .input(z.object({
-        sessionId: z.string(),
-        phrase: z.string(),
-        confidence: z.number().optional(),
-        sentiment: z.enum(["positive", "neutral", "negative"]).optional(),
-        emotion: z.string().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        // Salvar transcrição em tempo real
-        const transcript = await db.createCarTranscript({
-          carSessionId: input.sessionId,
-          phrase: input.phrase,
-          confidence: input.confidence,
-          sentiment: input.sentiment,
-          emotion: input.emotion,
-          keywords: input.phrase.split(/\s+/).slice(0, 5),
-        });
-        
-        return transcript;
-      }),
-    
-    getSessions: protectedProcedure.query(async ({ ctx }) => {
-      return db.getCarSessions(ctx.user.id);
-    }),
-    
-    getSessionDetails: protectedProcedure
-      .input(z.string())
-      .query(async ({ ctx, input }) => {
-        return db.getCarSessionDetails(ctx.user.id, input);
-      }),
-    
-    search: protectedProcedure
-      .input(z.object({
-        query: z.string(),
-        type: z.enum(["patients", "appointments", "protocols", "all"]).optional(),
-      }))
-      .query(async ({ ctx, input }) => {
-        const results = await db.searchAllTables(ctx.user.id, input.query, input.type || "all");
-        return results;
-      }),
-    }),
+  // ─── Assistente Carro (removido - usar carAssistantRouter) ───
+  // Bloco comentado - usar carAssistant router importado acima
 
   // ─── Sentiment Analysis (Assistente IA) ───
   sentiment: router({
