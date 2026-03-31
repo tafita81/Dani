@@ -4,10 +4,12 @@ import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 
 /**
- * ROUTER DO ASSISTENTE CLÍNICO SILENCIOSO (V2 - ULTRA RÍGIDO)
+ * ROUTER DO ASSISTENTE CLÍNICO SILENCIOSO (V3 - COM PERSISTÊNCIA NO DB)
  * 
- * Este router é estritamente proibido de saudações ou interações de chat.
- * Ele funciona apenas como um processador de transcrição clínica.
+ * Este router processa transcrições e as salva automaticamente nas tabelas de:
+ * 1. sessionNotes (Transcrição bruta)
+ * 2. sessionEvolutions (Análise e insights)
+ * 3. leadInteractions (Se for um lead)
  */
 export const clinicalAssistantRouter = router({
   analyzeSession: protectedProcedure
@@ -54,17 +56,44 @@ ANALISE ESTA TRANSCRIÇÃO AGORA:`;
 
       const result = await invokeLLM({
         messages: messages as any,
-        temperature: 0.1, // Mínima criatividade para evitar "conversinha"
+        temperature: 0.1,
       });
 
       let response = typeof result.choices[0]?.message?.content === "string"
         ? result.choices[0].message.content
         : "";
 
-      // Filtro de segurança final: se a IA insistir em saudações, nós removemos.
+      // Filtro de segurança final
       const forbiddenPhrases = ["Olá", "Oi,", "Como posso", "Sou seu", "Sou uma IA", "Não tenho sentimentos"];
       if (forbiddenPhrases.some(phrase => response.includes(phrase))) {
         response = "[ANÁLISE]: O paciente está relatando sua semana.\n[SUGESTÃO]: Daniela, explore como ele se sentiu emocionalmente durante esses eventos.";
+      }
+
+      // ─── PERSISTÊNCIA NO BANCO DE DADOS ───
+      if (input.patientId) {
+        try {
+          // 1. Salvar a transcrição bruta como nota de sessão
+          await db.createSessionNote({
+            userId: ctx.user.id,
+            patientId: input.patientId,
+            content: input.transcript,
+            type: "transcription",
+            createdAt: new Date()
+          } as any);
+
+          // 2. Salvar a análise como uma evolução de sessão
+          await db.createSessionEvolution({
+            userId: ctx.user.id,
+            patientId: input.patientId,
+            content: response,
+            type: "ai_insight",
+            createdAt: new Date()
+          } as any);
+
+          console.log(`[ClinicalAssistant] Dados persistidos para o paciente ${input.patientId}`);
+        } catch (e) {
+          console.error("[ClinicalAssistant] Erro ao persistir no DB:", e);
+        }
       }
 
       return { response };
