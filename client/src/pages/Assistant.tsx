@@ -1,383 +1,273 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Send,
-  BotMessageSquare,
-  User,
-  Loader2,
-  Mic,
-  MicOff,
-  Eye,
-  EyeOff,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { trpc } from "../lib/trpc";
+import { toast } from "react-hot-toast";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { ScrollArea } from "../components/ui/scroll-area";
+import { Mic, MicOff, Save, CheckCircle, Brain, User, FileText, Activity } from "lucide-react";
+import { Badge } from "../components/ui/badge";
 
-interface ChatMessage {
+interface TranscriptionEntry {
   id: string;
-  role: "user" | "assistant";
+  role: "patient" | "therapist" | "assistant";
   content: string;
   timestamp: Date;
-  isVoice?: boolean;
-  type?: "suggestion" | "analysis" | "recommendation" | "sentiment";
-  sentiment?: {
-    overallSentiment: string;
-    emotionalStates: Array<{ emotion: string; intensity: number }>;
-    riskIndicators: Array<{ indicator: string; severity: string }>;
-  };
+  type?: "transcription" | "analysis" | "summary";
 }
 
-/**
- * ASSISTENTE IA - DURANTE CONSULTA
- * 
- * Funcionalidades:
- * ✅ Captura voz do paciente e da psicóloga
- * ✅ Transcrição silenciosa em tempo real
- * ✅ Análise com IA
- * ✅ Respostas APENAS em TEXTO (nunca áudio)
- * ✅ Invisível para o paciente (não vê na tela)
- * ✅ Apenas Daniela vê as sugestões
- * ✅ Sugestões clínicas em tempo real
- * ✅ Recomendações de técnicas
- * ✅ Análise de padrões
- */
 export default function Assistant() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: "🤖 Assistente IA Ativo\n\nCapturando áudio da consulta...\nAnalisando em tempo real...\n\n(Invisível para o paciente)",
-      timestamp: new Date(),
-      type: "suggestion",
-    },
-  ]);
-  
   const [isRecording, setIsRecording] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [transcription, setTranscription] = useState("");
-  const [showToPatient, setShowToPatient] = useState(false); // Controle de visibilidade
-  const [recordingTime, setRecordingTime] = useState(0);
+  const [entries, setEntries] = useState<TranscriptionEntry[]>([]);
+  const [currentTranscript, setCurrentTranscript] = useState("");
+  const [patientId, setPatientId] = useState<number | undefined>(1); // Mock patient ID
+  const [isEndingSession, setIsEndingSession] = useState(false);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const recognitionRef = useRef<any>(null);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Endpoint forçado e limpo para evitar cache
-  const clinicalMutation = trpc.clinicalAssistant.analyzeSession.useMutation();
+  const analyzeMutation = trpc.clinicalAssistant.analyzeTranscript.useMutation();
+  const endSessionMutation = trpc.clinicalAssistant.endSession.useMutation();
 
-  // Iniciar captura contínua de áudio (Web Speech API)
-  const startRecording = useCallback(async () => {
-    try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        toast.error("Web Speech API não suportada neste navegador");
-        return;
+  // ─── Captura de Voz Contínua ───
+  const startRecording = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error("Web Speech API não suportada neste navegador");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-BR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = async (event: any) => {
+      let interimTranscript = "";
+      let finalTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
       }
 
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
+      if (finalTranscript) {
+        const userEntry: TranscriptionEntry = {
+          id: `trans-${Date.now()}`,
+          role: "patient",
+          content: finalTranscript,
+          timestamp: new Date(),
+          type: "transcription",
+        };
+        setEntries((prev) => [...prev, userEntry]);
 
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "pt-BR";
+        // Enviar para análise técnica silenciosa
+        try {
+          const response = await analyzeMutation.mutateAsync({
+            transcript: finalTranscript,
+            patientId,
+          });
 
-      let interimTranscript = "";
-
-      recognition.onstart = () => {
-        setIsRecording(true);
-        setRecordingTime(0);
-        recordingIntervalRef.current = setInterval(() => {
-          setRecordingTime((t) => t + 1);
-        }, 1000);
-        toast.success("🎤 Captura de áudio iniciada (silenciosa)");
-      };
-
-      recognition.onresult = (event: any) => {
-        interimTranscript = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-
-          if (event.results[i].isFinal) {
-            // Frase completa - enviar para análise
-            handleFinalTranscript(transcript);
-          } else {
-            interimTranscript += transcript;
-          }
+          const aiEntry: TranscriptionEntry = {
+            id: `ai-${Date.now()}`,
+            role: "assistant",
+            content: response.response,
+            timestamp: new Date(),
+            type: "analysis",
+          };
+          setEntries((prev) => [...prev, aiEntry]);
+        } catch (e) {
+          console.error("Erro na análise técnica:", e);
         }
+      }
+      setCurrentTranscript(interimTranscript);
+    };
 
-        setTranscription(interimTranscript);
-      };
+    recognition.onend = () => {
+      if (isRecording) recognition.start(); // Reiniciar automaticamente para ser contínuo
+    };
 
-      recognition.onerror = (event: any) => {
-        console.error("Erro de reconhecimento:", event.error);
-        toast.error(`Erro: ${event.error}`);
-      };
+    recognition.onerror = (event: any) => {
+      console.error("Erro no reconhecimento de voz:", event.error);
+      if (event.error !== "no-speech") toast.error("Erro no microfone");
+    };
 
-      recognition.onend = () => {
-        setIsRecording(false);
-        if (recordingIntervalRef.current) {
-          clearInterval(recordingIntervalRef.current);
-        }
-        toast.info("Captura de áudio finalizada");
-      };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+    toast.success("Consulta iniciada - Microfone Ativo");
+  }, [isRecording, patientId]);
 
-      recognition.start();
-    } catch (error) {
-      toast.error("Erro ao iniciar captura de áudio");
-      console.error(error);
-    }
-  }, []);
-
-  // Parar captura de áudio
   const stopRecording = useCallback(() => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsRecording(false);
-      setTranscription("");
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-      }
+      toast.info("Captura pausada");
     }
   }, []);
 
-  // Processar frase completa transcrita
-  const handleFinalTranscript = useCallback(async (transcript: string) => {
-    if (!transcript.trim()) return;
+  // ─── Encerramento de Consulta ───
+  const handleEndSession = async () => {
+    if (!patientId) return;
+    setIsEndingSession(true);
+    stopRecording();
+
+    const fullTranscript = entries
+      .filter(e => e.type === "transcription")
+      .map(e => `${e.role === "patient" ? "Paciente" : "Terapeuta"}: ${e.content}`)
+      .join("\n");
 
     try {
-      setIsProcessing(true);
-
-      // Adicionar transcrição ao chat (visível apenas para Daniela)
-      const userMessage: ChatMessage = {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: transcript,
-        timestamp: new Date(),
-        isVoice: true,
-      };
-
-      setMessages((prev) => [...prev, userMessage]);
-
-      // CHAMADA OBRIGATÓRIA AO ANALISADOR SILENCIOSO (V3)
-      const response = await clinicalMutation.mutateAsync({
-        transcript: transcript,
-        // Removemos o histórico de chat para forçar a IA a não conversar
-        history: [] 
+      const response = await endSessionMutation.mutateAsync({
+        patientId,
+        fullTranscript,
       });
 
-      // Se por algum motivo a IA responder como chat, filtramos no front também
-      const cleanContent = response.response.includes("Olá") || response.response.includes("Como posso") 
-        ? `[ANÁLISE]: Registro de fala detectado.\n[SUGESTÃO]: Daniela, continue acompanhando o relato do paciente.`
-        : response.response;
-
-      // Adicionar INSIGHT da IA (APENAS TEXTO, SILENCIOSO, TÉCNICO)
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
+      const summaryEntry: TranscriptionEntry = {
+        id: `summary-${Date.now()}`,
         role: "assistant",
-        content: cleanContent,
+        content: response.summary,
         timestamp: new Date(),
-        type: "analysis",
+        type: "summary",
       };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      // Scroll automático
-      setTimeout(() => {
-        scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-    } catch (error) {
-      console.error("Erro ao processar transcrição:", error);
-      toast.error("Erro ao analisar áudio");
+      setEntries((prev) => [...prev, summaryEntry]);
+      toast.success("Consulta encerrada e dados salvos!");
+    } catch (e) {
+      toast.error("Erro ao encerrar consulta");
     } finally {
-      setIsProcessing(false);
+      setIsEndingSession(false);
     }
-  }, [chatMutation]);
+  };
 
-  // Scroll automático para última mensagem
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
-
-  // Limpar recursos ao desmontar
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-      }
-    };
-  }, []);
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [entries, currentTranscript]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-2 lg:gap-4 h-full p-4">
-      {/* CHAT - Área Principal */}
-      <div className="flex-1 flex flex-col order-2 lg:order-1 min-h-0">
-        <Card className="flex-1 flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-blue-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BotMessageSquare className="w-5 h-5 text-blue-600" />
-              Assistente IA - Consulta
-              <span className={`text-xs px-2 py-1 rounded-full ${isRecording ? "bg-red-500 text-white animate-pulse" : "bg-gray-300 text-gray-700"}`}>
-                {isRecording ? `🎤 Gravando (${recordingTime}s)` : "Parado"}
-              </span>
+    <div className="flex flex-col h-screen bg-slate-50 p-4 md:p-6">
+      <header className="flex items-center justify-between mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-100 rounded-lg">
+            <Brain className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Processador Clínico Inteligente</h1>
+            <p className="text-sm text-slate-500">Suporte Profissional para Psi. Daniela Coelho</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {isRecording && (
+            <Badge variant="outline" className="animate-pulse bg-red-50 text-red-600 border-red-200 flex gap-2 py-1">
+              <Activity className="w-3 h-3" /> Gravando Sessão
+            </Badge>
+          )}
+          <Button
+            variant={isRecording ? "destructive" : "default"}
+            onClick={isRecording ? stopRecording : startRecording}
+            className="flex gap-2"
+          >
+            {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            {isRecording ? "Pausar Captura" : "Iniciar Captura"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleEndSession} 
+            disabled={isEndingSession || entries.length === 0}
+            className="flex gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+          >
+            <CheckCircle className="w-4 h-4" />
+            {isEndingSession ? "Processando..." : "Encerrar Consulta"}
+          </Button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden">
+        {/* Painel de Transcrição Bruta */}
+        <Card className="flex flex-col overflow-hidden border-slate-200 shadow-sm">
+          <CardHeader className="bg-slate-50/50 border-b">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <FileText className="w-4 h-4 text-slate-500" />
+              Transcrição em Tempo Real (Invisível para o Paciente)
             </CardTitle>
           </CardHeader>
-
-          <CardContent className="flex-1 flex flex-col overflow-hidden">
-            {/* Transcrição em Tempo Real */}
-            {transcription && (
-              <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-500 rounded text-sm text-gray-700">
-                <p className="font-semibold text-blue-900">Transcrevendo:</p>
-                <p className="italic">{transcription}</p>
-              </div>
-            )}
-
-            {/* Chat Messages */}
-            <ScrollArea className="flex-1 pr-4 mb-4">
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <ScrollArea className="h-full p-4">
               <div className="space-y-4">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
-                        msg.role === "user"
-                          ? "bg-blue-500 text-white rounded-br-none"
-                          : `${
-                              msg.type === "suggestion"
-                                ? "bg-green-100 text-green-900 border-l-4 border-green-500"
-                                : msg.type === "analysis"
-                                ? "bg-purple-100 text-purple-900 border-l-4 border-purple-500"
-                                : "bg-orange-100 text-orange-900 border-l-4 border-orange-500"
-                            } rounded-bl-none`
-                      }`}
-                    >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      <p className={`text-xs mt-2 ${msg.role === "user" ? "text-blue-100" : "opacity-70"}`}>
-                        {msg.timestamp.toLocaleTimeString("pt-BR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
+                {entries.filter(e => e.type === "transcription").map((entry) => (
+                  <div key={entry.id} className="flex gap-3">
+                    <div className="mt-1">
+                      <User className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-700 leading-relaxed">{entry.content}</p>
+                      <span className="text-[10px] text-slate-400">{entry.timestamp.toLocaleTimeString()}</span>
                     </div>
                   </div>
                 ))}
-                {isProcessing && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-200 text-gray-700 px-4 py-3 rounded-lg rounded-bl-none">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    </div>
+                {currentTranscript && (
+                  <div className="flex gap-3 opacity-50">
+                    <User className="w-4 h-4 text-slate-300" />
+                    <p className="text-sm text-slate-400 italic">{currentTranscript}...</p>
                   </div>
                 )}
                 <div ref={scrollRef} />
               </div>
             </ScrollArea>
-
-            {/* Controles */}
-            <div className="flex gap-2 pt-4 border-t">
-              <Button
-                onClick={isRecording ? stopRecording : startRecording}
-                className={`flex-1 ${
-                  isRecording
-                    ? "bg-red-500 hover:bg-red-600"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
-                disabled={isProcessing}
-              >
-                {isRecording ? (
-                  <>
-                    <MicOff className="w-4 h-4 mr-2" />
-                    Parar Captura
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-4 h-4 mr-2" />
-                    Iniciar Captura
-                  </>
-                )}
-              </Button>
-
-              <Button
-                onClick={() => setShowToPatient(!showToPatient)}
-                variant="outline"
-                className={showToPatient ? "bg-yellow-100 border-yellow-500" : ""}
-              >
-                {showToPatient ? (
-                  <>
-                    <Eye className="w-4 h-4 mr-2" />
-                    Visível
-                  </>
-                ) : (
-                  <>
-                    <EyeOff className="w-4 h-4 mr-2" />
-                    Invisível
-                  </>
-                )}
-              </Button>
-            </div>
           </CardContent>
         </Card>
 
-        {/* Aviso de Privacidade */}
-        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
-          <p>🔒 <strong>Privacidade:</strong> Este assistente é invisível para o paciente. Apenas você (Daniela) vê as análises e sugestões. Nenhum áudio é reproduzido.</p>
+        {/* Painel de Insights Técnicos e Resumo */}
+        <Card className="flex flex-col overflow-hidden border-indigo-100 shadow-md ring-1 ring-indigo-50">
+          <CardHeader className="bg-indigo-50/50 border-b border-indigo-100">
+            <CardTitle className="text-sm font-semibold text-indigo-900 flex items-center gap-2">
+              <Brain className="w-4 h-4 text-indigo-600" />
+              Análise Clínica e Sugestões (Exclusivo Daniela)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <ScrollArea className="h-full p-4">
+              <div className="space-y-4">
+                {entries.filter(e => e.type === "analysis" || e.type === "summary").map((entry) => (
+                  <div 
+                    key={entry.id} 
+                    className={`p-4 rounded-lg border ${
+                      entry.type === "summary" 
+                        ? "bg-emerald-50 border-emerald-100 text-emerald-900" 
+                        : "bg-indigo-50/30 border-indigo-100 text-indigo-900"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                        {entry.type === "summary" ? "RESUMO FINAL DE PRONTUÁRIO" : "INSIGHT EM TEMPO REAL"}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{entry.timestamp.toLocaleTimeString()}</span>
+                    </div>
+                    <div className="text-sm whitespace-pre-wrap leading-relaxed font-medium">
+                      {entry.content}
+                    </div>
+                  </div>
+                ))}
+                {entries.length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 mt-20">
+                    <Brain className="w-12 h-12 opacity-20" />
+                    <p className="text-sm italic">Aguardando transcrição para iniciar análise...</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      <footer className="mt-6 flex items-center justify-between text-[11px] text-slate-400 bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1"><Save className="w-3 h-3" /> Salvamento Automático Ativo</span>
+          <span className="flex items-center gap-1 text-emerald-600 font-medium"><CheckCircle className="w-3 h-3" /> Ambiente Seguro e Criptografado</span>
         </div>
-      </div>
-
-      {/* INFORMAÇÕES - Painel Lateral (Desktop) */}
-      <div className="hidden lg:flex lg:flex-col lg:w-80 gap-4 order-1">
-        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-300">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">📊 Status da Consulta</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Duração:</span>
-              <span className="font-bold">{recordingTime}s</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Mensagens:</span>
-              <span className="font-bold">{messages.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Status:</span>
-              <span className={`font-bold ${isRecording ? "text-red-600" : "text-green-600"}`}>
-                {isRecording ? "🎤 Gravando" : "⏹️ Parado"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Visibilidade:</span>
-              <span className={`font-bold ${showToPatient ? "text-yellow-600" : "text-green-600"}`}>
-                {showToPatient ? "👁️ Visível" : "🔒 Invisível"}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">💡 Dicas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs text-gray-700">
-            <p>✅ Clique em "Iniciar Captura" para começar</p>
-            <p>✅ O assistente transcreve automaticamente</p>
-            <p>✅ Análises aparecem em tempo real</p>
-            <p>✅ Paciente nunca vê as sugestões</p>
-            <p>✅ Nenhum áudio é reproduzido</p>
-          </CardContent>
-        </Card>
-      </div>
+        <p>© 2026 Processador Clínico v4.0 - Inteligência Aplicada à Psicologia</p>
+      </footer>
     </div>
   );
 }

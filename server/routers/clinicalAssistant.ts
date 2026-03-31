@@ -3,23 +3,12 @@ import { z } from "zod";
 import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 
-/**
- * ROUTER DO ASSISTENTE CLÍNICO SILENCIOSO (V3 - COM PERSISTÊNCIA NO DB)
- * 
- * Este router processa transcrições e as salva automaticamente nas tabelas de:
- * 1. sessionNotes (Transcrição bruta)
- * 2. sessionEvolutions (Análise e insights)
- * 3. leadInteractions (Se for um lead)
- */
 export const clinicalAssistantRouter = router({
-  analyzeSession: protectedProcedure
+  // 1. Processamento de Transcrição em Tempo Real (Silencioso e Técnico)
+  analyzeTranscript: protectedProcedure
     .input(z.object({ 
       transcript: z.string().min(1),
       patientId: z.number().optional(),
-      history: z.array(z.object({
-        role: z.enum(["user", "assistant"]),
-        content: z.string()
-      })).optional()
     }))
     .mutation(async ({ ctx, input }) => {
       let patientContext = "";
@@ -30,72 +19,87 @@ export const clinicalAssistantRouter = router({
         }
       }
 
-      const systemPrompt = `VOCÊ NÃO É UM CHATBOT. VOCÊ É UM ANALISADOR CLÍNICO SILENCIOSO.
-VOCÊ NUNCA DIZ "OLÁ", "COMO POSSO AJUDAR", "SOU UMA IA" OU QUALQUER SAUDAÇÃO.
-SUA RESPOSTA DEVE SER APENAS INSIGHTS TÉCNICOS PARA A PSICÓLOGA DANIELA.
+      const systemPrompt = `VOCÊ É O ANALISADOR CLÍNICO DA PSI. DANIELA COELHO.
+SUA FUNÇÃO É PROCESSAR A TRANSCRIÇÃO DE UMA SESSÃO EM TEMPO REAL E FORNECER INSIGHTS TÉCNICOS.
 
-REGRAS ABSOLUTAS:
-1. PROIBIDO saudações (Olá, Oi, Bom dia).
-2. PROIBIDO se apresentar (Sou seu assistente, Sou uma IA).
-3. PROIBIDO responder perguntas do paciente.
-4. USE APENAS o formato de tags abaixo.
+REGRAS CRUCIAIS:
+1. VOCÊ NÃO É UM CHATBOT. NÃO USE SAUDAÇÕES OU PRIMEIRA PESSOA SOCIAL.
+2. ANALISE O CONTEÚDO SOB A ÓTICA DA PSICOLOGIA (TCC, TERAPIA DO ESQUEMA, GESTALT).
+3. IDENTIFIQUE: DISTORÇÕES COGNITIVAS, PADRÕES EMOCIONAIS E TEMAS CENTRAIS.
+4. FORNEÇA SUGESTÕES DE TÉCNICAS OU PERGUNTAS CLÍNICAS PARA A DANIELA.
 
-FORMATO OBRIGATÓRIO:
-[ANÁLISE]: (Breve observação técnica sobre o que foi dito)
-[SUGESTÃO]: (Técnica clínica ou pergunta para Daniela fazer)
-[SENTIMENTO]: (Emoção detectada na fala)
-[ALERTA]: (Se houver risco ou ponto crítico)
+FORMATO DE SAÍDA:
+[INSIGHT]: (Observação técnica sobre a fala atual)
+[TÉCNICA]: (Sugestão de abordagem para a Daniela)
+[SENTIMENTO]: (Emoção predominante detectada)
+[ALERTA]: (Pontos de atenção ou riscos)
 
 ${patientContext}
-ANALISE ESTA TRANSCRIÇÃO AGORA:`;
-
-      const messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: input.transcript }
-      ];
+TRANSCRIÇÃO ATUAL:`;
 
       const result = await invokeLLM({
-        messages: messages as any,
-        temperature: 0.1,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: input.transcript }
+        ],
+        temperature: 0.2,
       });
 
-      let response = typeof result.choices[0]?.message?.content === "string"
+      const response = typeof result.choices[0]?.message?.content === "string"
         ? result.choices[0].message.content
-        : "";
+        : "Processando...";
 
-      // Filtro de segurança final
-      const forbiddenPhrases = ["Olá", "Oi,", "Como posso", "Sou seu", "Sou uma IA", "Não tenho sentimentos"];
-      if (forbiddenPhrases.some(phrase => response.includes(phrase))) {
-        response = "[ANÁLISE]: O paciente está relatando sua semana.\n[SUGESTÃO]: Daniela, explore como ele se sentiu emocionalmente durante esses eventos.";
-      }
-
-      // ─── PERSISTÊNCIA NO BANCO DE DADOS ───
+      // Persistência imediata da transcrição bruta
       if (input.patientId) {
-        try {
-          // 1. Salvar a transcrição bruta como nota de sessão
-          await db.createSessionNote({
-            userId: ctx.user.id,
-            patientId: input.patientId,
-            content: input.transcript,
-            type: "transcription",
-            createdAt: new Date()
-          } as any);
-
-          // 2. Salvar a análise como uma evolução de sessão
-          await db.createSessionEvolution({
-            userId: ctx.user.id,
-            patientId: input.patientId,
-            content: response,
-            type: "ai_insight",
-            createdAt: new Date()
-          } as any);
-
-          console.log(`[ClinicalAssistant] Dados persistidos para o paciente ${input.patientId}`);
-        } catch (e) {
-          console.error("[ClinicalAssistant] Erro ao persistir no DB:", e);
-        }
+        await db.createSessionNote({
+          userId: ctx.user.id,
+          patientId: input.patientId,
+          content: input.transcript,
+          type: "transcription",
+          createdAt: new Date()
+        } as any);
       }
 
       return { response };
+    }),
+
+  // 2. Encerramento de Consulta e Consolidação de Dados
+  endSession: protectedProcedure
+    .input(z.object({ 
+      patientId: z.number(),
+      fullTranscript: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const systemPrompt = `Você é o Supervisor Clínico da Dra. Daniela Coelho.
+Com base na transcrição completa da sessão abaixo, gere um RESUMO CLÍNICO ESTRUTURADO para o prontuário do paciente.
+
+ESTRUTURA DO RESUMO:
+1. SÍNTESE DA SESSÃO: (Principais temas abordados)
+2. EVOLUÇÃO CLÍNICA: (Progresso ou retrocesso observado)
+3. INTERVENÇÕES REALIZADAS: (Técnicas utilizadas)
+4. PLANO DE AÇÃO: (Próximos passos e tarefas de casa)
+
+TRANSCRIÇÃO COMPLETA:
+${input.fullTranscript}`;
+
+      const result = await invokeLLM({
+        messages: [{ role: "system", content: systemPrompt }],
+        temperature: 0.3,
+      });
+
+      const summary = typeof result.choices[0]?.message?.content === "string"
+        ? result.choices[0].message.content
+        : "Resumo não gerado.";
+
+      // Salvar evolução final no banco de dados
+      await db.createSessionEvolution({
+        userId: ctx.user.id,
+        patientId: input.patientId,
+        content: summary,
+        type: "session_summary",
+        createdAt: new Date()
+      } as any);
+
+      return { summary };
     }),
 });
