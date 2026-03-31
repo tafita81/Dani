@@ -4,10 +4,12 @@ import { toast } from "react-hot-toast";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { Mic, MicOff, CheckCircle, Brain, User, FileText, Activity, Clock, Search, Lock, Unlock, UserPlus } from "lucide-react";
+import { Mic, MicOff, CheckCircle, Brain, User, FileText, Activity, Clock, Search, Lock, Unlock, UserPlus, Save, X, Phone, Mail, Calendar, Heart } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 
 interface TranscriptionEntry {
   id: string;
@@ -26,12 +28,26 @@ export default function Assistant() {
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isPatientConfirmed, setIsPatientConfirmed] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  // Estado do formulário de novo paciente
+  const [newPatient, setNewPatient] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    birthDate: "",
+    gender: "",
+    primaryApproach: "TCC",
+    complaint: "",
+  });
 
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Queries e Mutations
+  const utils = trpc.useUtils();
   const { data: patients, isLoading: loadingPatients } = trpc.clinicalAssistant.listPatients.useQuery();
+  const createPatientMutation = trpc.clinicalAssistant.createPatient.useMutation();
   const analyzeMutation = trpc.clinicalAssistant.analyzeTranscript.useMutation();
   const endSessionMutation = trpc.clinicalAssistant.endSession.useMutation();
 
@@ -44,6 +60,26 @@ export default function Assistant() {
   }, [patients, searchTerm]);
 
   const selectedPatient = patients?.find(p => p.id === patientId);
+
+  // ─── Cadastro de Novo Paciente ───
+  const handleCreatePatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPatient.name) {
+      toast.error("O nome do paciente é obrigatório");
+      return;
+    }
+
+    try {
+      const created = await createPatientMutation.mutateAsync(newPatient);
+      await utils.clinicalAssistant.listPatients.invalidate();
+      setPatientId(created.id);
+      setIsRegisterModalOpen(false);
+      setNewPatient({ name: "", email: "", phone: "", birthDate: "", gender: "", primaryApproach: "TCC", complaint: "" });
+      toast.success("Paciente cadastrado e selecionado com sucesso!");
+    } catch (error) {
+      toast.error("Erro ao cadastrar paciente");
+    }
+  };
 
   // ─── Captura de Voz Contínua ───
   const startRecording = useCallback(() => {
@@ -198,11 +234,11 @@ export default function Assistant() {
         <div className="flex flex-wrap items-center gap-3">
           {!isPatientConfirmed ? (
             <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
-              <div className="relative w-48">
+              <div className="relative w-40">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Buscar paciente..."
-                  className="pl-8 h-9 border-none bg-transparent focus-visible:ring-0"
+                  placeholder="Buscar..."
+                  className="pl-8 h-9 border-none bg-transparent focus-visible:ring-0 text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -211,7 +247,7 @@ export default function Assistant() {
                 onValueChange={(val) => setPatientId(Number(val))} 
                 value={patientId?.toString()}
               >
-                <SelectTrigger className="w-48 h-9 border-none bg-white shadow-none">
+                <SelectTrigger className="w-40 h-9 border-none bg-white shadow-none text-sm">
                   <SelectValue placeholder="Escolher..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -225,15 +261,100 @@ export default function Assistant() {
                   )}
                 </SelectContent>
               </Select>
-              <Button size="sm" onClick={confirmPatient} disabled={!patientId} className="h-8 gap-1">
+
+              {/* Modal de Cadastro de Novo Paciente */}
+              <Dialog open={isRegisterModalOpen} onOpenChange={setIsRegisterModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
+                    <UserPlus className="w-4 h-4 mr-1" /> Novo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <UserPlus className="w-5 h-5 text-indigo-600" />
+                      Cadastro de Novo Paciente (Padrão Clínico)
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCreatePatient} className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2 space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome Completo</label>
+                        <Input 
+                          placeholder="Ex: Maria Silva" 
+                          value={newPatient.name}
+                          onChange={e => setNewPatient({...newPatient, name: e.target.value})}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Telefone</label>
+                        <Input 
+                          placeholder="(11) 99999-9999" 
+                          value={newPatient.phone}
+                          onChange={e => setNewPatient({...newPatient, phone: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Data Nasc.</label>
+                        <Input 
+                          type="date" 
+                          value={newPatient.birthDate}
+                          onChange={e => setNewPatient({...newPatient, birthDate: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Gênero</label>
+                        <Select onValueChange={v => setNewPatient({...newPatient, gender: v})}>
+                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Feminino">Feminino</SelectItem>
+                            <SelectItem value="Masculino">Masculino</SelectItem>
+                            <SelectItem value="Outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Abordagem</label>
+                        <Select onValueChange={v => setNewPatient({...newPatient, primaryApproach: v})} defaultValue="TCC">
+                          <SelectTrigger><SelectValue placeholder="TCC" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TCC">TCC</SelectItem>
+                            <SelectItem value="Gestalt">Gestalt</SelectItem>
+                            <SelectItem value="Psicanálise">Psicanálise</SelectItem>
+                            <SelectItem value="Esquema">Terapia do Esquema</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2 space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Queixa Principal / Observações</label>
+                        <Textarea 
+                          placeholder="Relate brevemente o motivo da busca por terapia..." 
+                          className="h-20"
+                          value={newPatient.complaint}
+                          onChange={e => setNewPatient({...newPatient, complaint: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-3 pt-4 border-t">
+                      <Button type="button" variant="ghost" onClick={() => setIsRegisterModalOpen(false)}>Cancelar</Button>
+                      <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
+                        <Save className="w-4 h-4 mr-2" /> Salvar e Selecionar
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              <Button size="sm" onClick={confirmPatient} disabled={!patientId} className="h-8 gap-1 px-4 bg-indigo-600 hover:bg-indigo-700">
                 <CheckCircle className="w-3.5 h-3.5" /> Iniciar
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+            <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm">
               <Lock className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="text-sm font-semibold text-indigo-700">{selectedPatient?.name}</span>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-indigo-400 hover:text-indigo-600" onClick={resetSelection} disabled={isRecording}>
+              <span className="text-sm font-bold text-indigo-700">{selectedPatient?.name}</span>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-100/50" onClick={resetSelection} disabled={isRecording}>
                 <Unlock className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -241,27 +362,27 @@ export default function Assistant() {
 
           {isPatientConfirmed && (
             <>
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
                 <Clock className="w-3.5 h-3.5" />
                 {sessionStartTime?.toLocaleTimeString()}
               </div>
               <Button
                 variant={isRecording ? "destructive" : "default"}
                 onClick={isRecording ? stopRecording : startRecording}
-                className="flex gap-2"
+                className="flex gap-2 font-bold"
                 disabled={isEndingSession}
               >
                 {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                {isRecording ? "Pausar" : "Gravar Áudio"}
+                {isRecording ? "PAUSAR" : "GRAVAR ÁUDIO"}
               </Button>
               <Button 
                 variant="outline" 
                 onClick={handleEndSession} 
                 disabled={isEndingSession || entries.length === 0}
-                className="flex gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                className="flex gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold"
               >
-                <Save className="w-4 h-4" />
-                Encerrar Consulta
+                <CheckCircle className="w-4 h-4" />
+                ENCERRAR CONSULTA
               </Button>
             </>
           )}
@@ -274,10 +395,10 @@ export default function Assistant() {
             <User className="w-3 h-3 text-indigo-500" /> {selectedPatient.name}
           </Badge>
           <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 px-3 py-1 flex gap-2 shrink-0 shadow-sm">
-            Abordagem: {selectedPatient.primaryApproach || "Integrativa"}
+            <Heart className="w-3 h-3 text-rose-400" /> Abordagem: {selectedPatient.primaryApproach || "Integrativa"}
           </Badge>
           <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 px-3 py-1 flex gap-2 shrink-0 shadow-sm">
-            Histórico: {selectedPatient.totalSessions || 0} sessões
+            <Calendar className="w-3 h-3 text-amber-500" /> {selectedPatient.totalSessions || 0} sessões
           </Badge>
         </div>
       )}
@@ -314,7 +435,7 @@ export default function Assistant() {
                 {!isPatientConfirmed && (
                   <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-3 mt-20">
                     <UserPlus className="w-16 h-16 opacity-10" />
-                    <p className="text-sm font-medium">Busque e confirme o paciente para começar</p>
+                    <p className="text-sm font-bold">Busque ou cadastre um paciente para começar</p>
                   </div>
                 )}
                 <div ref={scrollRef} />
@@ -371,7 +492,7 @@ export default function Assistant() {
           <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Sessão: {new Date().toLocaleDateString()}</span>
           <span className="flex items-center gap-1 text-emerald-600 font-bold"><CheckCircle className="w-3 h-3" /> Prontuário Digital Conectado</span>
         </div>
-        <p className="font-medium">Processador Clínico Profissional v5.0 - Dra. Daniela Coelho</p>
+        <p className="font-bold">Estrategista Clínico Profissional v5.0 - Dra. Daniela Coelho</p>
       </footer>
     </div>
   );

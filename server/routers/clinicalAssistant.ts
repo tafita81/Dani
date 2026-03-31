@@ -10,6 +10,27 @@ export const clinicalAssistantRouter = router({
       return db.getPatients(ctx.user.id);
     }),
 
+  // Criar novo paciente com campos clínicos de elite
+  createPatient: protectedProcedure
+    .input(z.object({
+      name: z.string().min(2),
+      email: z.string().email().optional().or(z.literal("")),
+      phone: z.string().optional(),
+      birthDate: z.string().optional(),
+      gender: z.string().optional(),
+      primaryApproach: z.string().optional(),
+      complaint: z.string().optional(),
+      status: z.string().default("Ativo"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return db.createPatient({
+        userId: ctx.user.id,
+        ...input,
+        createdAt: new Date(),
+        totalSessions: 0,
+      } as any);
+    }),
+
   // 1. Processamento de Transcrição com Memória Clínica Profunda
   analyzeTranscript: protectedProcedure
     .input(z.object({ 
