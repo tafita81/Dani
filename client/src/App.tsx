@@ -13,6 +13,7 @@ const Agenda = lazy(() => import("./pages/Agenda"));
 const Patients = lazy(() => import("./pages/Patients"));
 const PatientDetail = lazy(() => import("./pages/PatientDetail"));
 const Assistant = lazy(() => import("./pages/Assistant"));
+const AssistantClinico = lazy(() => import("./pages/AssistantClinico"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Documents = lazy(() => import("./pages/Documents"));
 const Alerts = lazy(() => import("./pages/Alerts"));
@@ -106,7 +107,7 @@ function Router() {
       </Route>
       {/* Exclusive AI Assistant routes */}
       <Route path="/assistente-ia">
-        <Suspense fallback={<LoadingFallback />}><Assistant /></Suspense>
+        <Suspense fallback={<LoadingFallback />}><AssistantClinico /></Suspense>
       </Route>
       {/* Car Assistant - Public route */}
       <Route path="/assistente-carro-publico">

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { trpc } from '../utils/trpc';
 import { toast } from 'react-hot-toast';
 import { Mic, MicOff, Plus, Search, LogOut, Save } from 'lucide-react';
 
@@ -38,18 +37,19 @@ export default function AssistantClinico() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Buscar lista de clientes
-  const { data: clientsData } = trpc.clinicalAssistant.listClients.useQuery(
-    {},
-    { enabled: !sessionState.clientId }
-  );
-
+  // Buscar lista de clientes (simulado)
   useEffect(() => {
-    if (clientsData) {
-      setClients(clientsData);
-      setFilteredClients(clientsData);
-    }
-  }, [clientsData]);
+    // Simulação de clientes para teste
+    const mockClients: Client[] = [
+      { id: 1, name: 'Maria Silva', primaryApproach: 'TCC', status: 'active' },
+      { id: 2, name: 'João Santos', primaryApproach: 'Gestalt', status: 'active' },
+      { id: 3, name: 'Ana Costa', primaryApproach: 'Esquema', status: 'inactive' },
+    ];
+    setClients(mockClients);
+    setFilteredClients(mockClients);
+  }, []);
+
+
 
   // Filtrar clientes por busca
   useEffect(() => {
@@ -331,12 +331,16 @@ function NewClientForm({ onSuccess }: { onSuccess: () => void }) {
     mainComplaint: '',
   });
 
-  const createClientMutation = trpc.clinicalAssistant.createClient.useMutation();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createClientMutation.mutateAsync(formData);
+      // Simular cadastro
+      const newClient: Client = {
+        id: Math.random(),
+        name: formData.name,
+        primaryApproach: formData.primaryApproach,
+        status: 'active',
+      };
       toast.success('Cliente cadastrado com sucesso');
       onSuccess();
     } catch (error) {
@@ -398,11 +402,10 @@ function NewClientForm({ onSuccess }: { onSuccess: () => void }) {
         />
         <button
           type="submit"
-          disabled={createClientMutation.isPending}
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition"
         >
           <Save size={20} />
-          {createClientMutation.isPending ? 'Salvando...' : 'Salvar e Selecionar'}
+          Salvar e Selecionar
         </button>
       </form>
     </div>
