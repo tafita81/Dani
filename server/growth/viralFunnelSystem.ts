@@ -3,7 +3,7 @@
  * Implementa referral viral, automação de marketing e analytics
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface ReferralLink {
   id: string;

@@ -3,9 +3,9 @@
  * Sistema completo de análise e insights para o Assistente Carro
  */
 
-import * as db from "./db";
+import * as db from "../core_logic/db";
 import { eq, and, gte, desc, asc } from "drizzle-orm";
-import { appointments, sessionNotes } from "../drizzle/schema";
+import { appointments, sessionNotes } from "../../drizzle/schema";
 
 interface AdvancedFilterResult {
   question: string;

@@ -4,11 +4,11 @@
  * com sincronização automática com Outlook Calendar
  */
 
-import { db } from "./db";
-import { appointments } from "../drizzle/schema";
+import { db } from "../core_logic/db";
+import { appointments } from "../../drizzle/schema";
 import { syncAppointmentToOutlook } from "./outlookSync";
 import { sendWhatsAppReminder } from "./whatsappService";
-import { notifyOwner } from "./_core/notification";
+import { notifyOwner } from "../_core/notification";
 
 export type RecurrencePattern = "weekly" | "biweekly" | "monthly" | "custom";
 export type RecurrenceEnd = "never" | "after_count" | "on_date";

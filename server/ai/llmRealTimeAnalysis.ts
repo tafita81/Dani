@@ -1,4 +1,4 @@
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface RealTimeAnalysisResult {
   clinicalInsights: string[];

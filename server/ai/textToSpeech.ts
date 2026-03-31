@@ -3,7 +3,7 @@
  * Converte texto em áudio usando a API de síntese de fala
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 /**
  * Gerar áudio a partir de texto usando síntese de fala

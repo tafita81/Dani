@@ -1,8 +1,8 @@
-import { protectedProcedure } from "./_core/trpc";
+import { protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
-import { getDb } from "./db";
+import { getDb } from "../core_logic/db";
 import { eq, like } from "drizzle-orm";
-import { patients, appointments, sessionNotes } from "../drizzle/schema";
+import { patients, appointments, sessionNotes } from "../../drizzle/schema";
 
 /**
  * Procedures para buscar dados reais do banco de dados

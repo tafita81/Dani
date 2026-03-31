@@ -7,8 +7,8 @@ import {
   updateAppointmentInBothSystems,
   deleteAppointmentAndSync,
   syncAllAppointmentsToOutlook,
-} from "../outlookSync";
-import { getDb } from "../db";
+} from "../integrations/outlookSync";
+import { getDb } from "../core_logic/db";
 import { appointments } from "../../drizzle/schema";
 import { and, eq, gte, lt, lte } from "drizzle-orm";
 

@@ -7,7 +7,7 @@
  * Data: 29/03/2026
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TIPOS

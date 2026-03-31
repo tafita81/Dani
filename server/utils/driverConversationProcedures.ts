@@ -1,6 +1,6 @@
-import { protectedProcedure } from "./_core/trpc";
+import { protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
-import { getDb } from "./db";
+import { getDb } from "../core_logic/db";
 import { driverConversations, driverRecommendations, driverTopicAnalysis } from "../drizzle/driverConversationSchema";
 import { desc, eq, and } from "drizzle-orm";
 

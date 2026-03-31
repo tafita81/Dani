@@ -3,7 +3,7 @@
  * Avatar 3D, Emotion AI, Podcast IA, Quiz Viral, AR para Esquemas
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface Avatar3D {
   id: string;

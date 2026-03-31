@@ -5,7 +5,7 @@
 
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { z } from "zod";
-import { getDb } from "../db";
+import { getDb } from "../core_logic/db";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 
 // Schema de validação

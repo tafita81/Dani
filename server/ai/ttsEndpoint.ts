@@ -4,7 +4,7 @@
  */
 
 import { Router } from "express";
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 const router = Router();
 

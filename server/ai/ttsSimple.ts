@@ -3,7 +3,7 @@
  * Usa Google Translate API para gerar áudio
  */
 
-import { storagePut } from "./storage";
+import { storagePut } from "../core_logic/storage";
 
 /**
  * Gerar áudio usando Google Translate TTS

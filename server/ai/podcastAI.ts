@@ -4,7 +4,7 @@
  * Projeção: 200-500 consultas/mês
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── GERAÇÃO DE SCRIPT DE PODCAST ───

@@ -3,8 +3,8 @@
  * Rastreia ações, calcula métricas, descobre insights e otimiza automaticamente
  */
 
-import { getDb } from "./db";
-import { invokeLLM } from "./_core/llm";
+import { getDb } from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
 import {
   agentActionLog,
   performanceMetrics,
@@ -12,7 +12,7 @@ import {
   optimizationHistory,
   aiLearningModel,
   continuousImprovementPlan,
-} from "../drizzle/schema";
+} from "../../drizzle/schema";
 import { eq, gte, lte, and } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════════

@@ -7,8 +7,8 @@
 import cron from "node-cron";
 import { getSegmentationService } from "../segmentationService";
 import { getEmailTrackingService } from "../emailTrackingService";
-import { emailService } from "../emailService";
-import { getDb } from "../db";
+import { emailService } from "../services/emailService";
+import { getDb } from "../core_logic/db";
 
 interface NewsletterConfig {
   segmentId: string;

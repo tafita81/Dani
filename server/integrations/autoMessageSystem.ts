@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 import { protectedProcedure } from "./trpc";
-import { db } from "./db";
+import { db } from "../core_logic/db";
 import { invokeLLM } from "./server/_core/llm";
 import { appointmentTemplates, getTemplate } from "./messageTemplates";
 

@@ -4,10 +4,10 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
-import { appRouter } from "../routers";
+import { appRouter } from "../core_logic/routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { registerWebhookRoutes } from "../webhooks";
+import { registerWebhookRoutes } from "../webhooks/webhooks";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {

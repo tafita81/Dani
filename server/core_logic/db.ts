@@ -12,8 +12,8 @@ import {
   treatmentPlans, InsertTreatmentPlan, sessionEvolutions, InsertSessionEvolution,
   inventoryResults, InsertInventoryResult,
   carSessionRecordings, carSessionTranscripts,
-} from "../drizzle/schema";
-import { ENV } from './_core/env';
+} from "../../drizzle/schema";
+import { ENV } from '../_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 

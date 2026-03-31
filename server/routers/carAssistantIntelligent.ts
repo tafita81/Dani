@@ -13,7 +13,7 @@
 
 import { router, protectedProcedure, publicProcedure } from "../trpc";
 import { z } from "zod";
-import { db } from "../db";
+import { db } from "../core_logic/db";
 import {
   patients,
   appointments,

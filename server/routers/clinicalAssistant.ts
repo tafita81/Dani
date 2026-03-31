@@ -1,7 +1,7 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { invokeLLM } from "../_core/llm";
-import * as db from "../db";
+import * as db from "../core_logic/db";
 
 export const clinicalAssistantRouter = router({
   // Listar pacientes para o seletor

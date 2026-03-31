@@ -8,7 +8,7 @@
  * - "Liberar amanhã"
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── TIPOS ───

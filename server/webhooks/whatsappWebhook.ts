@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import * as db from "../db";
-import { parseConfirmationResponse } from "../whatsappService";
+import * as db from "../core_logic/db";
+import { parseConfirmationResponse } from "../integrations/whatsappService";
 import { notifyOwner } from "../_core/notification";
 
 /**

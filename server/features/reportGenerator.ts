@@ -1,5 +1,5 @@
 import { PDFDocument, PDFPage, rgb } from "pdf-lib";
-import { storagePut } from "./storage";
+import { storagePut } from "../core_logic/storage";
 
 export interface SessionReport {
   patientName: string;

@@ -2,7 +2,7 @@
  * Schedule Block Routers — tRPC Procedures para Bloqueio de Agenda
  */
 
-import { router, protectedProcedure } from "./_core/trpc";
+import { router, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import {
   blockScheduleDay,

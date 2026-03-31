@@ -5,9 +5,9 @@
  * Envia novo link com horários disponíveis
  */
 
-import { getDb } from "./db";
-import { invokeLLM } from "./_core/llm";
-import { sendTextMessage, sendButtonMessage } from "./whatsapp";
+import { getDb } from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
+import { sendTextMessage, sendButtonMessage } from "../integrations/whatsapp";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── TIPOS ───

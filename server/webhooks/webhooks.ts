@@ -6,13 +6,13 @@
  */
 
 import type { Express, Request, Response } from "express";
-import * as whatsapp from "./whatsapp";
-import * as telegram from "./telegram";
-import * as gcal from "./googleCalendar";
-import * as ocal from "./outlookCalendar";
-import * as db from "./db";
-import { invokeLLM } from "./_core/llm";
-import { generateAudioUrl } from "./ttsSimple";
+import * as whatsapp from "../integrations/whatsapp";
+import * as telegram from "../integrations/telegram";
+import * as gcal from "../integrations/googleCalendar";
+import * as ocal from "../integrations/outlookCalendar";
+import * as db from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
+import { generateAudioUrl } from "../ai/ttsSimple";
 
 export function registerWebhookRoutes(app: Express) {
   // ─── WhatsApp Webhook Verification (GET) ───

@@ -3,8 +3,8 @@
  * Converte texto em áudio usando a API de síntese de fala do Manus
  */
 
-import { ENV } from "./_core/env";
-import { storagePut } from "./storage";
+import { ENV } from "../_core/env";
+import { storagePut } from "../core_logic/storage";
 
 /**
  * Sintetizar texto em áudio

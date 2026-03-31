@@ -5,8 +5,8 @@
  * Sempre responde em primeira pessoa (Dani)
  */
 
-import { getDb } from "./db";
-import { invokeLLM } from "./_core/llm";
+import { getDb } from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── TIPOS ───

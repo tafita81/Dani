@@ -4,8 +4,8 @@
  * Automação completa de reagendamento com mensagens IA
  */
 
-import { getDb } from "./db";
-import { invokeLLM } from "./_core/llm";
+import { getDb } from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── TIPOS ───

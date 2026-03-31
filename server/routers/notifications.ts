@@ -4,13 +4,13 @@ import {
   notifyReschedule,
   notifyConfirmation,
   notifyCancellation,
-} from "../emailService";
+} from "../ai/emailService";
 import {
   sendConfirmationViaWhatsApp,
   sendRescheduleViaWhatsApp,
   sendCancellationViaWhatsApp,
   sendReminderViaWhatsApp,
-} from "../whatsappService";
+} from "../integrations/whatsappService";
 
 export const notificationsRouter = router({
   /**

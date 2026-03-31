@@ -3,7 +3,7 @@
  * Detecta e analisa emoções do paciente durante consulta com o Assistente IA
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface EmotionAnalysis {
   primaryEmotion: string;

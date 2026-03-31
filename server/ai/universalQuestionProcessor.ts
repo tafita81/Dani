@@ -1,6 +1,6 @@
-import { protectedProcedure } from "./_core/trpc";
+import { protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
-import { getDb } from "./db";
+import { getDb } from "../core_logic/db";
 import {
   patients,
   appointments,
@@ -13,7 +13,7 @@ import {
   users,
   leads,
   documents,
-} from "../drizzle/schema";
+} from "../../drizzle/schema";
 import { desc, eq, like, and } from "drizzle-orm";
 
 /**

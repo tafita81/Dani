@@ -3,8 +3,8 @@
  * Referral viral, automação de marketing, otimização de conversão
  */
 
-import { getDb } from "./db";
-import { leads, appointments, instagramPosts, messageLog } from "../drizzle/schema";
+import { getDb } from "../core_logic/db";
+import { leads, appointments, instagramPosts, messageLog } from "../../drizzle/schema";
 import { eq, gte, lte, and } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════════

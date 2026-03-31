@@ -3,7 +3,7 @@
  * Sincroniza confirmações, cancelamentos e remarcações com eventos do Outlook
  */
 
-import * as ocal from "./outlookCalendar";
+import * as ocal from "../integrations/outlookCalendar";
 
 export interface NotificationSyncData {
   appointmentId: string;

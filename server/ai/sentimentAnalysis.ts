@@ -1,4 +1,4 @@
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface SentimentAnalysisResult {
   overallSentiment: "very_positive" | "positive" | "neutral" | "negative" | "very_negative";

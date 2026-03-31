@@ -3,7 +3,7 @@
  * Postagens automáticas de conteúdo de psicologia SEM foto de Daniela
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface InstagramPost {
   id: string;

@@ -1,7 +1,7 @@
-import { protectedProcedure } from "./_core/trpc";
+import { protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
-import { getDb } from "./db";
-import { patients, appointments, sessionNotes, treatmentPlans, moodEntries } from "../drizzle/schema";
+import { getDb } from "../core_logic/db";
+import { patients, appointments, sessionNotes, treatmentPlans, moodEntries } from "../../drizzle/schema";
 import { desc, eq } from "drizzle-orm";
 
 /**

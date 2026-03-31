@@ -2,7 +2,7 @@
  * Learning System Routers — Routers tRPC para aprendizado contínuo
  */
 
-import { router, protectedProcedure } from "./_core/trpc";
+import { router, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import * as learning from "./agentLearning";
 

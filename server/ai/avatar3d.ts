@@ -4,8 +4,8 @@
  * Projeção: 500-1000 consultas/mês
  */
 
-import { getDb } from "./db";
-import { invokeLLM } from "./_core/llm";
+import { getDb } from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── GERAÇÃO DE AVATAR 3D ───

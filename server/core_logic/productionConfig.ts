@@ -4,7 +4,7 @@
  * Instagram, Facebook, WhatsApp, Telegram, Outlook, GitHub, Supabase
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── TIPOS ───

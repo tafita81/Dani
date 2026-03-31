@@ -3,8 +3,8 @@
  * Cria commits automáticos com histórico de otimizações e insights
  */
 
-import { getDb } from "./db";
-import { githubSyncLog } from "../drizzle/schema";
+import { getDb } from "../core_logic/db";
+import { githubSyncLog } from "../../drizzle/schema";
 import { exec } from "child_process";
 import { promisify } from "util";
 

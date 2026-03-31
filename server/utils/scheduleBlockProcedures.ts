@@ -1,6 +1,6 @@
-import { protectedProcedure } from "./_core/trpc";
+import { protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
-import { getDb } from "./db";
+import { getDb } from "../core_logic/db";
 import { scheduleBlocks, outlookCredentials, outlookSyncLog } from "../drizzle/scheduleBlockSchema";
 import { desc, eq, and, between } from "drizzle-orm";
 

@@ -5,7 +5,7 @@
  * Deixa detalhes para a consulta
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── TIPOS ───

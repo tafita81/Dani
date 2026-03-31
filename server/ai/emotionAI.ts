@@ -4,7 +4,7 @@
  * Diferencial premium para psicólogos
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── ANÁLISE DE EMOÇÃO EM TEMPO REAL ───

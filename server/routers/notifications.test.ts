@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { notificationsRouter } from "./notifications";
-import * as emailService from "../emailService";
-import * as whatsappService from "../whatsappService";
+import * as emailService from "../services/emailService";
+import * as whatsappService from "../integrations/whatsappService";
 
 // Mock dos serviços
 vi.mock("../emailService");

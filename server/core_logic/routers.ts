@@ -1,25 +1,25 @@
 import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import { getSessionCookieOptions } from "../_core/cookies";
+import { systemRouter } from "../_core/systemRouter";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
 
 export { publicProcedure, protectedProcedure, adminProcedure };
 import { z } from "zod";
-import * as db from "./db";
-import { invokeLLM } from "./_core/llm";
-import { storagePut } from "./storage";
-import { generateIcs } from "./ics";
-import * as gcal from "./googleCalendar";
-import * as ocal from "./outlookCalendar";
-import * as igm from "./instagramManager";
+import * as db from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
+import { storagePut } from "../core_logic/storage";
+import { generateIcs } from "../features/ics";
+import * as gcal from "../integrations/googleCalendar";
+import * as ocal from "../integrations/outlookCalendar";
+import * as igm from "../integrations/instagramManager";
 import { nanoid } from "nanoid";
-import techniqueRouter from "./techniqueRecommender";
-import { analyzeSentimentRealTime, generateSentimentBasedRecommendations } from "./sentimentAnalysis";
-import { generateSessionReport } from "./reportGenerator";
+import techniqueRouter from "../features/techniqueRecommender";
+import { analyzeSentimentRealTime, generateSentimentBasedRecommendations } from "../ai/sentimentAnalysis";
+import { generateSessionReport } from "../features/reportGenerator";
 import {
   listPatientsProcedure,
   processQuestionWithDataProcedure,
-} from "./databaseQueryProcedures";
+} from "../utils/databaseQueryProcedures";
 import { IntentRecognizer } from "./intentRecognizer";
 import { universalQuestionProcessorProcedure } from "./universalQuestionProcessor";
 import {
@@ -29,11 +29,11 @@ import {
   cancelAppointmentOutlook,
   listOutlookEvents,
   checkAvailabilityOutlook,
-} from "./outlookIntegration";
-import { universalQuestionFixed } from "./universalQuestionFixed";
-import { carAssistantRouter } from "./routers/carAssistant";
-import { notificationsRouter } from "./routers/notifications";
-import { clinicalAssistantRouter } from "./routers/clinicalAssistant";
+} from "../integrations/outlookIntegration";
+import { universalQuestionFixed } from "../ai/universalQuestionFixed";
+import { carAssistantRouter } from "../routers/carAssistant";
+import { notificationsRouter } from "../routers/notifications";
+import { clinicalAssistantRouter } from "../routers/clinicalAssistant";
 
 export const appRouter = router({
   system: systemRouter,
@@ -938,7 +938,7 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
         })
       )
       .mutation(async ({ input }) => {
-        const { createFormResponse } = await import("./formResponseManager");
+        const { createFormResponse } = await import("../features/formResponseManager");
         return createFormResponse(
           input.patientId,
           input.formId,
@@ -959,7 +959,7 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
     shouldRetakeForm: protectedProcedure
       .input(z.object({ patientId: z.string(), formId: z.string() }))
       .query(async ({ input }) => {
-        const { shouldRetakeForm } = await import("./formResponseManager");
+        const { shouldRetakeForm } = await import("../features/formResponseManager");
         return shouldRetakeForm(Date.now(), input.formId);
       }),
   }),
@@ -967,25 +967,25 @@ Responda em português brasileiro, formato JSON com campos: summary, themes, ide
   // ─── Formulários Psicológicos Validados ───
   forms: router({
     getAllForms: publicProcedure.query(async () => {
-      const { getAllForms } = await import("./psychologicalForms");
+      const { getAllForms } = await import("../features/psychologicalForms");
       return getAllForms();
     }),
     getFormsByTechnique: publicProcedure
       .input(z.enum(["TCC", "Esquema", "Gestalt", "Geral"]))
       .query(async ({ input }) => {
-        const { getFormsByTechnique } = await import("./psychologicalForms");
+        const { getFormsByTechnique } = await import("../features/psychologicalForms");
         return getFormsByTechnique(input);
       }),
     getFormById: publicProcedure
       .input(z.string())
       .query(async ({ input }) => {
-        const { getFormById } = await import("./psychologicalForms");
+        const { getFormById } = await import("../features/psychologicalForms");
         return getFormById(input);
       }),
     getFormsByCategory: publicProcedure
       .input(z.string())
       .query(async ({ input }) => {
-        const { getFormsByCategory } = await import("./psychologicalForms");
+        const { getFormsByCategory } = await import("../features/psychologicalForms");
         return getFormsByCategory(input);
       }),
   }),

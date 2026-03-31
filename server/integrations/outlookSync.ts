@@ -1,5 +1,5 @@
-import { getDb } from "./db";
-import { appointments } from "../drizzle/schema";
+import { getDb } from "../core_logic/db";
+import { appointments } from "../../drizzle/schema";
 import { eq, and, gte, lt } from "drizzle-orm";
 
 /**

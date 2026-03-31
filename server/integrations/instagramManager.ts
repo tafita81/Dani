@@ -3,11 +3,11 @@
  * Integração com Instagram Graph API e IA para automação de agentes Manus
  */
 
-import { getDb } from "./db";
-import { invokeLLM } from "./_core/llm";
-import { storagePut } from "./storage";
+import { getDb } from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
+import { storagePut } from "../core_logic/storage";
 import { nanoid } from "nanoid";
-import { instagramPosts, instagramAnalytics, instagramReels, instagramStories } from "../drizzle/schema";
+import { instagramPosts, instagramAnalytics, instagramReels, instagramStories } from "../../drizzle/schema";
 import { eq, gte, lte, and } from "drizzle-orm";
 
 export interface InstagramConfig {

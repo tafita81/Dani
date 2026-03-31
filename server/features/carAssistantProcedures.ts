@@ -11,7 +11,7 @@
 
 import { z } from "zod";
 import { protectedProcedure, router } from "./trpc";
-import { db } from "./db";
+import { db } from "../core_logic/db";
 import { invokeLLM } from "./server/_core/llm";
 
 // ─── RECONHECIMENTO DE COMANDOS DE VOZ ───

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { publicProcedure } from "./_core/trpc";
-import { invokeLLM } from "./_core/llm";
-import { transcribeAudio } from "./_core/voiceTranscription";
+import { publicProcedure } from "../_core/trpc";
+import { invokeLLM } from "../_core/llm";
+import { transcribeAudio } from "../_core/voiceTranscription";
 
 /**
  * Procedures para processamento de áudio

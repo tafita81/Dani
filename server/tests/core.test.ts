@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appRouter } from "./routers";
+import { appRouter } from "../core_logic/routers";
 
 describe("Assistente Clínico - Core System", () => {
   it("should have app router defined", () => {

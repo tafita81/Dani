@@ -3,7 +3,7 @@
  * Integração com Outlook Calendar, sugestões de horários, confirmação automática
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface AvailableSlot {
   date: Date;

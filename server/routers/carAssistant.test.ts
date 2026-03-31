@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { carAssistantRouter } from "./carAssistant";
-import { getDb } from "../db";
+import { getDb } from "../core_logic/db";
 
 // Mock do getDb
 vi.mock("../db", () => ({

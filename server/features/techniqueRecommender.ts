@@ -3,10 +3,10 @@
  * Integra IA com base de conhecimento para sugerir técnicas em tempo real
  */
 
-import { protectedProcedure, router } from "./_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
-import * as db from "./db";
-import { invokeLLM } from "./_core/llm";
+import * as db from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
 import { recommendTechniques, techniqueKnowledgeBase } from "./techniqueKnowledgeBase";
 
 export const techniqueRouter = router({

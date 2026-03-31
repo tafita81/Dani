@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import * as db from "./db";
+import * as db from "../core_logic/db";
 import { IntentRecognizer } from "./intentRecognizer";
 
 describe("CarAssistant - Busca em Banco de Dados Real", () => {

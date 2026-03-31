@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import * as db from "./db";
-import { universalQuestionFixed } from "./universalQuestionFixed";
+import * as db from "../core_logic/db";
+import { universalQuestionFixed } from "../ai/universalQuestionFixed";
 
 // Mock do contexto protectedProcedure
 const mockContext = {

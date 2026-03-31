@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure } from "./routers";
+import { publicProcedure } from "../core_logic/routers";
 
 export const getSuggestionsProcedure = publicProcedure
   .input(

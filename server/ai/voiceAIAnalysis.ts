@@ -3,7 +3,7 @@
  * Processa transcrições de áudio do Assistente Carro com LLM para gerar insights
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 export interface VoiceAIInsight {
   transcript: string;

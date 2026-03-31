@@ -4,7 +4,7 @@
  * Mantém tom profissional-humanizado (não amiga íntima)
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "../_core/llm";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── DELAY DE RESPOSTA ───

@@ -3,8 +3,8 @@
  * Encontra pacientes por características, histórico, abordagem, etc
  */
 
-import * as db from "./db";
-import { invokeLLM } from "./_core/llm";
+import * as db from "../core_logic/db";
+import { invokeLLM } from "../_core/llm";
 
 interface PatientMatch {
   userId: number;
