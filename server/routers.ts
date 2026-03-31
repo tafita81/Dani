@@ -703,49 +703,9 @@ export const appRouter = router({
   assistant: router({
     chat: protectedProcedure
       .input(z.object({ message: z.string().min(1) }))
-      .mutation(async ({ ctx, input }) => {
-        const stats = await db.getDashboardStats(ctx.user.id);
-        const upcoming = await db.getUpcomingAppointments(ctx.user.id, 5);
-        const allPatients = await db.getPatients(ctx.user.id);
-
-        const upcomingStr = upcoming.map(a => {
-          const date = new Date(a.startTime).toLocaleDateString("pt-BR");
-          const time = new Date(a.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-          const patient = allPatients.find(p => p.id === a.patientId);
-          return `- ${date} ${time}: ${a.title}${patient ? ` (${patient.name})` : ""} [${a.status}]`;
-        }).join("\n");
-
-        const patientsStr = allPatients.map(p => `- ${p.name} (ID:${p.id}, ${p.status}, abordagem: ${p.primaryApproach})`).join("\n");
-
-        const systemPrompt = `Você é o Assistente Clínico da Psi. Daniela Coelho. Você ajuda a organizar agenda, resumir sessões, gerenciar pacientes e otimizar o tempo.
-Responda sempre em português brasileiro, de forma profissional e objetiva.
-
-CONTEXTO ATUAL:
-- Data/Hora: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-- Total de pacientes: ${stats?.totalPatients || 0} (ativos: ${stats?.activePatients || 0})
-- Consultas hoje: ${stats?.todayAppointments || 0}
-- Alertas não lidos: ${stats?.unreadAlerts || 0}
-
-PRÓXIMAS CONSULTAS:
-${upcomingStr || "Nenhuma consulta agendada."}
-
-PACIENTES:
-${patientsStr || "Nenhum paciente cadastrado."}
-
-Quando pedirem resumo de paciente, use o contexto disponível. Se precisar de mais dados, informe educadamente.`;
-
-        const result = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: input.message },
-          ],
-        });
-
-        const response = typeof result.choices[0]?.message?.content === "string"
-          ? result.choices[0].message.content
-          : "Desculpe, não consegui processar. Tente novamente.";
-
-        return { response };
+      .mutation(async () => {
+        // ENDPOINT DESATIVADO PARA EVITAR COMPORTAMENTO DE CHATBOT
+        return { response: "[SISTEMA]: O modo chat foi desativado. Use o Clinical Assistant para análise silenciosa." };
       }),
 
     summarizePatient: protectedProcedure

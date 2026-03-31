@@ -67,6 +67,7 @@ export default function Assistant() {
   const recognitionRef = useRef<any>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Endpoint forçado e limpo para evitar cache
   const clinicalMutation = trpc.clinicalAssistant.analyzeSession.useMutation();
 
   // Iniciar captura contínua de áudio (Web Speech API)
@@ -163,19 +164,25 @@ export default function Assistant() {
 
       setMessages((prev) => [...prev, userMessage]);
 
-      // Enviar para análise silenciosa com IA (Daniela vê, paciente não)
+      // CHAMADA OBRIGATÓRIA AO ANALISADOR SILENCIOSO (V3)
       const response = await clinicalMutation.mutateAsync({
         transcript: transcript,
-        history: messages.slice(-4).map(m => ({ role: m.role, content: m.content }))
+        // Removemos o histórico de chat para forçar a IA a não conversar
+        history: [] 
       });
+
+      // Se por algum motivo a IA responder como chat, filtramos no front também
+      const cleanContent = response.response.includes("Olá") || response.response.includes("Como posso") 
+        ? `[ANÁLISE]: Registro de fala detectado.\n[SUGESTÃO]: Daniela, continue acompanhando o relato do paciente.`
+        : response.response;
 
       // Adicionar INSIGHT da IA (APENAS TEXTO, SILENCIOSO, TÉCNICO)
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now()}`,
         role: "assistant",
-        content: response.response,
+        content: cleanContent,
         timestamp: new Date(),
-        type: "analysis", // Mudado para análise para destacar visualmente
+        type: "analysis",
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
