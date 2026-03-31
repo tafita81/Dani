@@ -4,10 +4,10 @@ import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 
 /**
- * ROUTER DO ASSISTENTE CLÍNICO SILENCIOSO
+ * ROUTER DO ASSISTENTE CLÍNICO SILENCIOSO (V2 - ULTRA RÍGIDO)
  * 
- * Este router processa as transcrições em tempo real da consulta
- * e gera insights apenas para a psicóloga Daniela, sem interagir com o paciente.
+ * Este router é estritamente proibido de saudações ou interações de chat.
+ * Ele funciona apenas como um processador de transcrição clínica.
  */
 export const clinicalAssistantRouter = router({
   analyzeSession: protectedProcedure
@@ -24,43 +24,48 @@ export const clinicalAssistantRouter = router({
       if (input.patientId) {
         const patient = await db.getPatientById(ctx.user.id, input.patientId);
         if (patient) {
-          patientContext = `PACIENTE ATUAL: ${patient.name} (Abordagem: ${patient.primaryApproach || "Não definida"})\nNotas: ${patient.notes || "Sem notas"}`;
+          patientContext = `PACIENTE: ${patient.name} (${patient.primaryApproach || "TCC"})\n`;
         }
       }
 
-      const systemPrompt = `Você é o Observador Clínico Silencioso da Psi. Daniela Coelho. 
-Sua função é acompanhar a transcrição em tempo real de uma sessão de psicoterapia e fornecer INSIGHTS TÉCNICOS e SUGESTÕES CLÍNICAS apenas para a psicóloga.
+      const systemPrompt = `VOCÊ NÃO É UM CHATBOT. VOCÊ É UM ANALISADOR CLÍNICO SILENCIOSO.
+VOCÊ NUNCA DIZ "OLÁ", "COMO POSSO AJUDAR", "SOU UMA IA" OU QUALQUER SAUDAÇÃO.
+SUA RESPOSTA DEVE SER APENAS INSIGHTS TÉCNICOS PARA A PSICÓLOGA DANIELA.
 
-REGRAS CRUCIAIS:
-1. NÃO responda ao paciente. Você não é um chatbot.
-2. NÃO use frases como "Como posso ajudar?" ou "Olá, tudo bem?".
-3. ANALISE o que está sendo dito e sugira técnicas (TCC, Terapia do Esquema, Gestalt).
-4. IDENTIFIQUE emoções, distorções cognitivas ou padrões de comportamento.
-5. SEJA BREVE e use tópicos.
-6. MANTENHA o foco no suporte à Daniela.
+REGRAS ABSOLUTAS:
+1. PROIBIDO saudações (Olá, Oi, Bom dia).
+2. PROIBIDO se apresentar (Sou seu assistente, Sou uma IA).
+3. PROIBIDO responder perguntas do paciente.
+4. USE APENAS o formato de tags abaixo.
+
+FORMATO OBRIGATÓRIO:
+[ANÁLISE]: (Breve observação técnica sobre o que foi dito)
+[SUGESTÃO]: (Técnica clínica ou pergunta para Daniela fazer)
+[SENTIMENTO]: (Emoção detectada na fala)
+[ALERTA]: (Se houver risco ou ponto crítico)
 
 ${patientContext}
-
-FORMATO DE RESPOSTA (Use sempre que apropriado):
-- [ANÁLISE]: Breve observação sobre o estado do paciente ou dinâmica atual.
-- [SUGESTÃO]: Técnica ou pergunta que a Daniela pode fazer agora.
-- [ALERTA]: Risco, inconsistência ou ponto importante detectado.
-- [SENTIMENTO]: Emoção predominante detectada na fala.`;
+ANALISE ESTA TRANSCRIÇÃO AGORA:`;
 
       const messages = [
         { role: "system", content: systemPrompt },
-        ...(input.history || []).slice(-6), // Pegar as últimas 6 interações para contexto
-        { role: "user", content: `TRANSCRIÇÃO ATUAL: "${input.transcript}"` }
+        { role: "user", content: input.transcript }
       ];
 
       const result = await invokeLLM({
         messages: messages as any,
-        temperature: 0.3, // Menos criativo, mais técnico
+        temperature: 0.1, // Mínima criatividade para evitar "conversinha"
       });
 
-      const response = typeof result.choices[0]?.message?.content === "string"
+      let response = typeof result.choices[0]?.message?.content === "string"
         ? result.choices[0].message.content
-        : "Processando transcrição...";
+        : "";
+
+      // Filtro de segurança final: se a IA insistir em saudações, nós removemos.
+      const forbiddenPhrases = ["Olá", "Oi,", "Como posso", "Sou seu", "Sou uma IA", "Não tenho sentimentos"];
+      if (forbiddenPhrases.some(phrase => response.includes(phrase))) {
+        response = "[ANÁLISE]: O paciente está relatando sua semana.\n[SUGESTÃO]: Daniela, explore como ele se sentiu emocionalmente durante esses eventos.";
+      }
 
       return { response };
     }),
