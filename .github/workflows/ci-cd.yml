@@ -1,0 +1,47 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Docker Build
+        run: docker build -t ai-growth-app .
+
+      - name: Docker Tag
+        run: docker tag ai-growth-app ${{ secrets.DOCKER_USER }}/ai-growth-app:latest
+
+      - name: Docker Login
+        run: echo "${{ secrets.DOCKER_PASS }}" | docker login -u "${{ secrets.DOCKER_USER }}" --password-stdin
+
+      - name: Docker Push
+        run: docker push ${{ secrets.DOCKER_USER }}/ai-growth-app:latest
+
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure Kubeconfig
+        run: echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
+
+      - name: Deploy to Kubernetes
+        env:
+          KUBECONFIG: kubeconfig.yaml
+        run: kubectl apply -f k8s/
