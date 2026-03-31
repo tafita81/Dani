@@ -51,7 +51,7 @@ export const clinicalAssistantRouter = router({
       
       if (!context.patient) throw new Error("Paciente não encontrado ou acesso negado.");
 
-      const patientContext = `PACIENTE: ${context.patient.name}
+      const patientContext = `CLIENTE: ${context.patient.name}
 ABORDAGEM: ${context.patient.primaryApproach || "Integrativa"}
 STATUS: ${context.patient.status}
 TOTAL DE SESSÕES: ${context.patient.totalSessions || 0}\n`;
@@ -69,20 +69,20 @@ TOTAL DE SESSÕES: ${context.patient.totalSessions || 0}\n`;
         : "";
 
       const systemPrompt = `VOCÊ É O ESTRATEGISTA CLÍNICO CONECTADO DA PSI. DANIELA COELHO.
-SUA FUNÇÃO É ANALISAR A SESSÃO ATUAL INTEGRANDO TODO O HISTÓRICO DO PACIENTE.
+SUA FUNÇÃO É ANALISAR A SESSÃO ATUAL INTEGRANDO TODO O HISTÓRICO DO CLIENTE.
 
-CONTEXTO DO PACIENTE:
+CONTEXTO DO CLIENTE:
 ${patientContext}
 ${pastEvolutions}
 ${clinicalHistory}
 
 OBJETIVO:
-1. Identifique padrões recorrentes entre o que está sendo dito agora e o histórico.
+1. Identifique padrões recorrentes entre o que está sendo dito agora e o histórico do cliente.
 2. Sugira técnicas baseadas no que já foi tentado (veja o que deu certo ou errado no histórico).
 3. Seja um observador técnico e silencioso. NUNCA use saudações ou primeira pessoa social.
 
 FORMATO DE SAÍDA (EXCLUSIVO PARA DANIELA):
-[INSIGHT HISTÓRICO]: (Relacione a fala atual com padrões anteriores do paciente)
+[INSIGHT HISTÓRICO]: (Relacione a fala atual com padrões anteriores do cliente)
 [EFICÁCIA]: (Analise se a abordagem atual está funcionando baseada no histórico)
 [TÉCNICA RECOMENDADA]: (Sugira a melhor técnica para este momento específico, ex: TCC, Gestalt, Terapia do Esquema)
 [SENTIMENTO ATUAL]: (Emoção detectada agora)
@@ -132,7 +132,7 @@ TRANSCRIÇÃO EM TEMPO REAL:`;
       const patient = await db.getPatientById(ctx.user.id, input.patientId);
       
       const systemPrompt = `Você é o Supervisor Clínico Sênior.
-Gere um RESUMO CLÍNICO ESTRUTURADO consolidando a sessão de hoje com o histórico do paciente ${patient?.name || ""}.
+Gere um RESUMO CLÍNICO ESTRUTURADO consolidando a sessão de hoje com o histórico do cliente ${patient?.name || ""}.
 
 ESTRUTURA:
 1. SÍNTESE DA SESSÃO: (Principais temas)

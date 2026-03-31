@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 interface TranscriptionEntry {
   id: string;
-  role: "patient" | "therapist" | "assistant";
+  role: "client" | "therapist" | "assistant";
   content: string;
   timestamp: Date;
   type?: "transcription" | "analysis" | "summary";
@@ -23,14 +23,14 @@ export default function Assistant() {
   const [isRecording, setIsRecording] = useState(false);
   const [entries, setEntries] = useState<TranscriptionEntry[]>([]);
   const [currentTranscript, setCurrentTranscript] = useState("");
-  const [patientId, setPatientId] = useState<number | null>(null);
+  const [clientId, setClientId] = useState<number | null>(null);
   const [isEndingSession, setIsEndingSession] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isPatientConfirmed, setIsPatientConfirmed] = useState(false);
+  const [isClientConfirmed, setIsClientConfirmed] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
-  // Estado do formulário de novo paciente
+  // Estado do formulário de novo cliente
   const [newPatient, setNewPatient] = useState({
     name: "",
     email: "",
@@ -61,11 +61,11 @@ export default function Assistant() {
 
   const selectedPatient = patients?.find(p => p.id === patientId);
 
-  // ─── Cadastro de Novo Paciente ───
+  // ─── Cadastro de Novo Cliente ───
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPatient.name) {
-      toast.error("O nome do paciente é obrigatório");
+      toast.error("O nome do cliente é obrigatório");
       return;
     }
 
@@ -75,16 +75,16 @@ export default function Assistant() {
       setPatientId(created.id);
       setIsRegisterModalOpen(false);
       setNewPatient({ name: "", email: "", phone: "", birthDate: "", gender: "", primaryApproach: "TCC", complaint: "" });
-      toast.success("Paciente cadastrado e selecionado com sucesso!");
+      toast.success("Cliente cadastrado e selecionado com sucesso!");
     } catch (error) {
-      toast.error("Erro ao cadastrar paciente");
+      toast.error("Erro ao cadastrar cliente");
     }
   };
 
   // ─── Captura de Voz Contínua ───
   const startRecording = useCallback(() => {
     if (!isPatientConfirmed) {
-      toast.error("Confirme o paciente antes de iniciar a captura");
+      toast.error("Confirme o cliente antes de iniciar a captura");
       return;
     }
 
