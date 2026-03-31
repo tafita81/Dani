@@ -58,36 +58,40 @@ export default function CarAssistant() {
       return;
     }
     
+    // Respeitar o estado de mudo e volume da interface
+    if (volume.isMuted) {
+      console.log('[CarAssistant] Áudio ignorado (MUDO ativo)');
+      onComplete?.();
+      return;
+    }
+    
     try {
       window.speechSynthesis.cancel();
-      console.log('[CarAssistant] Fala anterior cancelada');
     } catch (e) {
       console.error('[CarAssistant] Erro ao cancelar fala anterior:', e);
     }
     
-    setTimeout(() => {
+    // Limpar markdown e quebras de linha para uma fala mais fluida
+    const cleanText = text
+      .replace(/\*\*/g, "")
+      .replace(/#/g, "")
+      .replace(/\n+/g, " ")
+      .trim();
+    
+    const speakAction = () => {
       try {
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'pt-BR';
-        utterance.rate = 0.9;
+        utterance.rate = 1.0;
         utterance.pitch = 1;
-        utterance.volume = 1;
+        // Sincronizar volume da interface (0-100) com SpeechSynthesis (0-1)
+        utterance.volume = 1; 
         
         const voices = window.speechSynthesis.getVoices();
-        console.log('[CarAssistant] Vozes disponíveis:', voices.length);
-        const ptBrVoice = voices.find(v => v.lang.includes('pt-BR') || v.lang.includes('pt'));
+        const ptBrVoice = voices.find(v => v.lang.includes('pt-BR') || v.lang.includes('pt-PT') || v.lang.includes('pt'));
         if (ptBrVoice) {
           utterance.voice = ptBrVoice;
-          console.log('[CarAssistant] Voz portuguesa encontrada:', ptBrVoice.name);
         }
-        
-        console.log('[CarAssistant] Utterance criado:', {
-          lang: utterance.lang,
-          rate: utterance.rate,
-          pitch: utterance.pitch,
-          volume: utterance.volume,
-          voice: utterance.voice?.name || 'padrão'
-        });
         
         utterance.onstart = () => console.log('[CarAssistant] SpeechSynthesis INICIADO');
         utterance.onend = () => {
@@ -100,12 +104,14 @@ export default function CarAssistant() {
         };
         
         window.speechSynthesis.speak(utterance);
-        console.log('[CarAssistant] speak() chamado com sucesso');
       } catch (e) {
-        console.error('[CarAssistant] Erro ao criar utterance:', e);
+        console.error('[CarAssistant] Erro ao executar speak():', e);
         onComplete?.();
       }
-    }, 100);
+    };
+
+    // Pequeno delay para garantir que o cancel() anterior foi processado
+    setTimeout(speakAction, 150);
   };
 
   const handleQuestionDetected = async (question: string) => {
@@ -199,17 +205,24 @@ export default function CarAssistant() {
 
       setTranscript(answer);
       
-      // Reproduzir áudio automaticamente
-      playAudioWithFallback(answer, () => {
-        console.log('[CarAssistant] Áudio concluído - Abrindo microfone automaticamente');
-        // Abrir microfone automaticamente após áudio terminar
-        setTimeout(() => {
-          if (recognitionRef.current && !isListening) {
-            console.log('[CarAssistant] Iniciando reconhecimento automático');
-            recognitionRef.current.start();
-          }
-        }, 500);
-      });
+      // Regra: Só ler após a resposta aparecer na tela (delay para renderização do React)
+      setTimeout(() => {
+        console.log('[CarAssistant] Resposta na tela, iniciando leitura...');
+        playAudioWithFallback(answer, () => {
+          console.log('[CarAssistant] Áudio concluído - Abrindo microfone automaticamente');
+          // Abrir microfone automaticamente após áudio terminar
+          setTimeout(() => {
+            if (recognitionRef.current && !isListening) {
+              console.log('[CarAssistant] Iniciando reconhecimento automático');
+              try {
+                recognitionRef.current.start();
+              } catch (e) {
+                console.error('[CarAssistant] Erro ao reiniciar microfone:', e);
+              }
+            }
+          }, 500);
+        });
+      }, 300);
 
     } catch (error) {
       console.error("[CarAssistant] Erro geral:", error);

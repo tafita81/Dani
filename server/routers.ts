@@ -33,11 +33,13 @@ import {
 import { universalQuestionFixed } from "./universalQuestionFixed";
 import { carAssistantRouter } from "./routers/carAssistant";
 import { notificationsRouter } from "./routers/notifications";
+import { clinicalAssistantRouter } from "./routers/clinicalAssistant";
 
 export const appRouter = router({
   system: systemRouter,
   carAssistant: carAssistantRouter,
   notifications: notificationsRouter,
+  clinicalAssistant: clinicalAssistantRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
