@@ -1,45 +1,50 @@
-import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+/**
+ * trpc.ts — Configuração tRPC com middleware de autenticação
+ */
+
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import type { TrpcContext } from "./context";
+import type { Context } from "./context.js";
 
-const t = initTRPC.context<TrpcContext>().create({
+const t = initTRPC.context<Context>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    return {
+      ...shape,
+      data: {
+        ...shape.data,
+        zodError:
+          error.cause instanceof Error ? error.cause.message : null,
+      },
+    };
+  },
 });
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
+export const middleware = t.middleware;
 
-const requireUser = t.middleware(async opts => {
-  const { ctx, next } = opts;
-
+// ── Middleware de auth ────────────────────────────────────────
+const isAuthed = middleware(({ ctx, next }) => {
   if (!ctx.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Você precisa estar autenticado",
+    });
   }
-
-  return next({
-    ctx: {
-      ...ctx,
-      user: ctx.user,
-    },
-  });
+  return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
-
-export const adminProcedure = t.procedure.use(
-  t.middleware(async opts => {
-    const { ctx, next } = opts;
-
-    if (!ctx.user || ctx.user.role !== 'admin') {
-      throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
-    }
-
-    return next({
-      ctx: {
-        ...ctx,
-        user: ctx.user,
-      },
+const isAdmin = middleware(({ ctx, next }) => {
+  if (!ctx.user || ctx.user.role !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Acesso restrito a administradores",
     });
-  }),
-);
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+// ── Procedures ────────────────────────────────────────────────
+export const publicProcedure = t.procedure;
+export const protectedProcedure = t.procedure.use(isAuthed);
+export const adminProcedure = t.procedure.use(isAdmin);

@@ -1,176 +1,92 @@
 /**
- * Telegram Bot API integration.
- * Handles sending messages with inline keyboards for appointment booking.
+ * telegram.ts — Bot Telegram com inline keyboards para agendamento
  */
 
-const TELEGRAM_API = "https://api.telegram.org";
+const BOT_TOKEN  = process.env.TELEGRAM_BOT_TOKEN ?? "";
+const WEBHOOK_URL = process.env.TELEGRAM_WEBHOOK_URL ?? "";
+const BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-export interface TelegramConfig {
-  botToken: string;
-  webhookUrl?: string;
-}
-
-export interface InlineButton {
-  text: string;
-  callback_data: string;
-}
-
-// ─── Send text message ───
-export async function sendMessage(config: TelegramConfig, chatId: string, text: string, parseMode = "HTML") {
-  const url = `${TELEGRAM_API}/bot${config.botToken}/sendMessage`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: parseMode,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Telegram send failed: ${error}`);
-  }
-  return response.json();
-}
-
-// ─── Send message with inline keyboard ───
-export async function sendInlineKeyboard(
-  config: TelegramConfig,
-  chatId: string,
-  text: string,
-  buttons: InlineButton[][],
-  parseMode = "HTML"
-) {
-  const url = `${TELEGRAM_API}/bot${config.botToken}/sendMessage`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: parseMode,
-      reply_markup: {
-        inline_keyboard: buttons,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Telegram inline keyboard send failed: ${error}`);
-  }
-  return response.json();
-}
-
-// ─── Answer callback query ───
-export async function answerCallbackQuery(config: TelegramConfig, callbackQueryId: string, text?: string) {
-  const url = `${TELEGRAM_API}/bot${config.botToken}/answerCallbackQuery`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      callback_query_id: callbackQueryId,
-      text,
-    }),
-  });
-  return response.json();
-}
-
-// ─── Edit message text ───
-export async function editMessageText(
-  config: TelegramConfig,
-  chatId: string,
-  messageId: number,
-  text: string,
-  buttons?: InlineButton[][],
-  parseMode = "HTML"
-) {
-  const url = `${TELEGRAM_API}/bot${config.botToken}/editMessageText`;
-  const body: any = {
-    chat_id: chatId,
-    message_id: messageId,
-    text,
-    parse_mode: parseMode,
-  };
-  if (buttons) {
-    body.reply_markup = { inline_keyboard: buttons };
-  }
-  const response = await fetch(url, {
+async function telegramPost(method: string, body: object) {
+  const res = await fetch(`${BASE}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return response.json();
+  return res.json();
 }
 
-// ─── Send document ───
-export async function sendDocument(
-  config: TelegramConfig,
-  chatId: string,
-  documentUrl: string,
-  filename: string,
-  caption?: string
+// ── Registrar webhook ─────────────────────────────────────────
+export async function registerWebhook(): Promise<void> {
+  if (!BOT_TOKEN || !WEBHOOK_URL) return;
+  await telegramPost("setWebhook", { url: `${WEBHOOK_URL}/api/webhooks/telegram` });
+  console.log("✅ Telegram webhook registrado");
+}
+
+// ── Enviar mensagem ───────────────────────────────────────────
+export async function sendMessage(chatId: number | string, text: string) {
+  return telegramPost("sendMessage", { chat_id: chatId, text, parse_mode: "HTML" });
+}
+
+// ── Enviar inline keyboard de horários ───────────────────────
+export async function sendScheduleKeyboard(
+  chatId: number | string,
+  slots: Array<{ label: string; value: string }>
 ) {
-  const url = `${TELEGRAM_API}/bot${config.botToken}/sendDocument`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      document: documentUrl,
-      caption,
-      parse_mode: "HTML",
-    }),
+  const buttons = slots.map(s => [{ text: s.label, callback_data: `schedule:${s.value}` }]);
+  return telegramPost("sendMessage", {
+    chat_id: chatId,
+    text: "🗓️ Escolha um horário disponível:",
+    reply_markup: { inline_keyboard: buttons },
   });
+}
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Telegram document send failed: ${error}`);
+// ── Processar update recebido ─────────────────────────────────
+export async function processUpdate(update: any): Promise<void> {
+  // Callback de botão inline
+  if (update.callback_query) {
+    const { id, data, from, message } = update.callback_query;
+    await telegramPost("answerCallbackQuery", { callback_query_id: id });
+
+    if (data?.startsWith("schedule:")) {
+      const slot = data.replace("schedule:", "");
+      await sendMessage(message.chat.id,
+        `✅ Horário <b>${slot}</b> selecionado!\n` +
+        `Acesse o link para confirmar: ${process.env.FRONTEND_URL}/agendar`
+      );
+    }
+    return;
   }
-  return response.json();
-}
 
-// ─── Set webhook ───
-export async function setWebhook(config: TelegramConfig, webhookUrl: string) {
-  const url = `${TELEGRAM_API}/bot${config.botToken}/setWebhook`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: webhookUrl }),
-  });
+  // Mensagem de texto
+  const msg  = update.message;
+  if (!msg) return;
+  const chatId = msg.chat.id;
+  const text   = (msg.text ?? "").toLowerCase().trim();
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Telegram setWebhook failed: ${error}`);
+  if (text === "/start") {
+    await sendMessage(chatId,
+      `👋 Olá! Sou a assistente da <b>Dra. Daniela Coelho</b>.\n\n` +
+      `Use os comandos:\n` +
+      `/agendar — Ver horários disponíveis\n` +
+      `/sobre — Sobre a Dra. Daniela\n` +
+      `/site — Link do site`
+    );
+    return;
   }
-  return response.json();
-}
 
-// ─── Delete webhook ───
-export async function deleteWebhook(config: TelegramConfig) {
-  const url = `${TELEGRAM_API}/bot${config.botToken}/deleteWebhook`;
-  const response = await fetch(url, { method: "POST" });
-  return response.json();
-}
+  if (text === "/agendar" || text.includes("agendar")) {
+    await sendMessage(chatId,
+      `Para agendar, acesse:\n👉 ${process.env.FRONTEND_URL}/agendar\n\nOu aguarde que enviarei os horários disponíveis! 😊`
+    );
+    return;
+  }
 
-// ─── Parse incoming update ───
-export interface TelegramUpdate {
-  message?: {
-    message_id: number;
-    chat: { id: number; first_name?: string; last_name?: string; username?: string };
-    text?: string;
-    date: number;
-  };
-  callback_query?: {
-    id: string;
-    message: { message_id: number; chat: { id: number } };
-    data: string;
-    from: { id: number; first_name?: string; last_name?: string; username?: string };
-  };
-}
+  if (text === "/site") {
+    await sendMessage(chatId, `🌐 ${process.env.FRONTEND_URL}`);
+    return;
+  }
 
-export function parseTelegramUpdate(body: any): TelegramUpdate {
-  return body as TelegramUpdate;
+  await sendMessage(chatId,
+    `Recebi sua mensagem! Em breve entraremos em contato. 💜\nPara agendar: ${process.env.FRONTEND_URL}/agendar`
+  );
 }

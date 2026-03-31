@@ -1,225 +1,133 @@
 /**
- * WhatsApp Business Cloud API integration.
- * Handles sending messages, templates, and interactive buttons.
+ * whatsapp.ts — Integração WhatsApp Business API
+ * Envio de mensagens, lembretes e automação de respostas
  */
 
-const WHATSAPP_API = "https://graph.facebook.com/v21.0";
+import { db } from "../core_logic/db.js";
+import { messageLog, patients, leads } from "../../drizzle/schema.js";
+import { eq } from "drizzle-orm";
 
-export interface WhatsAppConfig {
-  phoneNumberId: string;
-  accessToken: string;
-  verifyToken: string;
-  businessAccountId?: string;
-}
+const WA_TOKEN   = process.env.WHATSAPP_BUSINESS_API_TOKEN ?? "";
+const PHONE_ID   = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
+const BASE_URL   = `https://graph.facebook.com/v18.0/${PHONE_ID}`;
 
-export interface WhatsAppMessage {
-  from: string;
-  text?: string;
-  type: string;
-  timestamp: string;
-  interactive?: {
-    type: string;
-    button_reply?: { id: string; title: string };
-    list_reply?: { id: string; title: string; description?: string };
-  };
-}
-
-// ─── Send text message ───
-export async function sendTextMessage(config: WhatsAppConfig, to: string, text: string) {
-  const url = `${WHATSAPP_API}/${config.phoneNumberId}/messages`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: text },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`WhatsApp send failed: ${error}`);
+// ── Enviar mensagem de texto ──────────────────────────────────
+export async function sendTextMessage(to: string, text: string): Promise<boolean> {
+  if (!WA_TOKEN || !PHONE_ID) {
+    console.warn("[WhatsApp] Credenciais não configuradas");
+    return false;
   }
-  return response.json();
-}
 
-// ─── Send interactive buttons ───
-export async function sendButtonMessage(
-  config: WhatsAppConfig,
-  to: string,
-  bodyText: string,
-  buttons: { id: string; title: string }[]
-) {
-  const url = `${WHATSAPP_API}/${config.phoneNumberId}/messages`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: { text: bodyText },
-        action: {
-          buttons: buttons.slice(0, 3).map(b => ({
-            type: "reply",
-            reply: { id: b.id, title: b.title.slice(0, 20) },
-          })),
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`WhatsApp button send failed: ${error}`);
-  }
-  return response.json();
-}
-
-// ─── Send interactive list ───
-export async function sendListMessage(
-  config: WhatsAppConfig,
-  to: string,
-  bodyText: string,
-  buttonText: string,
-  sections: { title: string; rows: { id: string; title: string; description?: string }[] }[]
-) {
-  const url = `${WHATSAPP_API}/${config.phoneNumberId}/messages`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "interactive",
-      interactive: {
-        type: "list",
-        body: { text: bodyText },
-        action: {
-          button: buttonText.slice(0, 20),
-          sections,
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`WhatsApp list send failed: ${error}`);
-  }
-  return response.json();
-}
-
-// ─── Send document (for .ics files) ───
-export async function sendDocumentMessage(
-  config: WhatsAppConfig,
-  to: string,
-  documentUrl: string,
-  filename: string,
-  caption?: string
-) {
-  const url = `${WHATSAPP_API}/${config.phoneNumberId}/messages`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "document",
-      document: {
-        link: documentUrl,
-        filename,
-        caption,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`WhatsApp document send failed: ${error}`);
-  }
-  return response.json();
-}
-
-// ─── Send template message (for notifications) ───
-export async function sendTemplateMessage(
-  config: WhatsAppConfig,
-  to: string,
-  templateName: string,
-  languageCode: string,
-  components?: any[]
-) {
-  const url = `${WHATSAPP_API}/${config.phoneNumberId}/messages`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "template",
-      template: {
-        name: templateName,
-        language: { code: languageCode },
-        components,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`WhatsApp template send failed: ${error}`);
-  }
-  return response.json();
-}
-
-// ─── Parse incoming webhook ───
-export function parseWebhookMessage(body: any): WhatsAppMessage | null {
   try {
-    const entry = body?.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-    const message = value?.messages?.[0];
-    if (!message) return null;
+    const res = await fetch(`${BASE_URL}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${WA_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: to.replace(/\D/g, ""),
+        type: "text",
+        text: { body: text },
+      }),
+    });
 
-    return {
-      from: message.from,
-      text: message.text?.body,
-      type: message.type,
-      timestamp: message.timestamp,
-      interactive: message.interactive,
-    };
-  } catch {
-    return null;
+    return res.ok;
+  } catch (err) {
+    console.error("[WhatsApp] Erro ao enviar:", err);
+    return false;
   }
 }
 
-// ─── Verify webhook ───
-export function verifyWebhook(query: any, verifyToken: string): string | null {
-  const mode = query["hub.mode"];
-  const token = query["hub.verify_token"];
-  const challenge = query["hub.challenge"];
+// ── Enviar template (lembrete de consulta) ────────────────────
+export async function sendAppointmentReminder(
+  phone: string,
+  patientName: string,
+  dateStr: string,
+  timeStr: string
+): Promise<boolean> {
+  const text = `Olá ${patientName}! 🌸
+Lembrete da sua consulta com a Dra. Daniela Coelho:
 
-  if (mode === "subscribe" && token === verifyToken) {
-    return challenge;
+📅 Data: ${dateStr}
+🕐 Horário: ${timeStr}
+
+Para confirmar, responda SIM. Para cancelar, responda NÃO.
+
+Em caso de dúvidas: https://wa.me/${process.env.WHATSAPP_PHONE_NUMBER_ID}`;
+
+  return sendTextMessage(phone, text);
+}
+
+// ── Enviar CTA para lead de alta intenção ─────────────────────
+export async function sendHighIntentCTA(phone: string, name: string): Promise<boolean> {
+  const text = `Olá ${name}! 😊
+Vi que você demonstrou interesse em iniciar sua jornada terapêutica.
+
+A Dra. Daniela Coelho tem disponibilidade para uma consulta inicial.
+Clique no link para escolher o melhor horário:
+
+👉 ${process.env.FRONTEND_URL}/agendar
+
+Qualquer dúvida, estou aqui! 💜`;
+
+  return sendTextMessage(phone, text);
+}
+
+// ── Processar mensagem recebida (webhook) ─────────────────────
+export async function processInboundMessage(payload: any): Promise<void> {
+  const entry   = payload?.entry?.[0];
+  const changes = entry?.changes?.[0];
+  const value   = changes?.value;
+  const message = value?.messages?.[0];
+  if (!message) return;
+
+  const from = message.from;
+  const text = message.text?.body ?? "";
+  const waId = message.id;
+
+  // Registrar no log
+  await db.insert(messageLog).values({
+    channel:    "whatsapp",
+    direction:  "inbound",
+    content:    text,
+    externalId: waId,
+  }).onDuplicateKeyUpdate({ set: { content: text } });
+
+  // Detectar intenção e responder
+  const lower = text.toLowerCase().trim();
+
+  if (["sim", "confirmar", "confirmo", "ok"].includes(lower)) {
+    await sendTextMessage(from, "✅ Consulta confirmada! Até lá. 😊");
+    return;
   }
+
+  if (["não", "nao", "cancelar", "cancela"].includes(lower)) {
+    await sendTextMessage(from,
+      "Entendido! Sua consulta foi cancelada. Para reagendar, acesse:\n" +
+      `${process.env.FRONTEND_URL}/agendar`
+    );
+    return;
+  }
+
+  if (lower.includes("agendar") || lower.includes("consulta") || lower.includes("horário")) {
+    await sendTextMessage(from,
+      `Para agendar uma consulta com a Dra. Daniela Coelho, acesse:\n` +
+      `👉 ${process.env.FRONTEND_URL}/agendar\n\n` +
+      `Ou responda com sua disponibilidade e entraremos em contato! 💜`
+    );
+    return;
+  }
+
+  // Resposta padrão
+  await sendTextMessage(from,
+    `Olá! 👋 Sou a assistente da Dra. Daniela Coelho.\n` +
+    `Para agendar ou tirar dúvidas, acesse: ${process.env.FRONTEND_URL}\n\n` +
+    `Em breve entraremos em contato! 💜`
+  );
+}
+
+// ── Verificar webhook (GET de validação do Meta) ──────────────
+export function verifyWebhook(mode: string, token: string, challenge: string): string | null {
+  const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? "";
+  if (mode === "subscribe" && token === verifyToken) return challenge;
   return null;
 }

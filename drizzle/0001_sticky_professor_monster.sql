@@ -1,1 +1,0 @@
-ALTER TABLE `integrationSettings` MODIFY COLUMN `intProvider` enum('google_calendar','outlook_calendar','whatsapp','telegram','instagram') NOT NULL;

@@ -1,332 +1,158 @@
-import { ENV } from "./env";
+/**
+ * llm.ts — Substitui Manus Built-in LLM por OpenAI
+ * Interface compatível com o código existente
+ */
 
-export type Role = "system" | "user" | "assistant" | "tool" | "function";
+import OpenAI from "openai";
 
-export type TextContent = {
-  type: "text";
-  text: string;
-};
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-export type ImageContent = {
-  type: "image_url";
-  image_url: {
-    url: string;
-    detail?: "auto" | "low" | "high";
-  };
-};
+export const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
-export type FileContent = {
-  type: "file_url";
-  file_url: {
-    url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
-  };
-};
-
-export type MessageContent = string | TextContent | ImageContent | FileContent;
-
-export type Message = {
-  role: Role;
-  content: MessageContent | MessageContent[];
-  name?: string;
-  tool_call_id?: string;
-};
-
-export type Tool = {
-  type: "function";
-  function: {
-    name: string;
-    description?: string;
-    parameters?: Record<string, unknown>;
-  };
-};
-
-export type ToolChoicePrimitive = "none" | "auto" | "required";
-export type ToolChoiceByName = { name: string };
-export type ToolChoiceExplicit = {
-  type: "function";
-  function: {
-    name: string;
-  };
-};
-
-export type ToolChoice =
-  | ToolChoicePrimitive
-  | ToolChoiceByName
-  | ToolChoiceExplicit;
-
-export type InvokeParams = {
-  messages: Message[];
-  tools?: Tool[];
-  toolChoice?: ToolChoice;
-  tool_choice?: ToolChoice;
-  maxTokens?: number;
-  max_tokens?: number;
-  outputSchema?: OutputSchema;
-  output_schema?: OutputSchema;
-  responseFormat?: ResponseFormat;
-  response_format?: ResponseFormat;
-};
-
-export type ToolCall = {
-  id: string;
-  type: "function";
-  function: {
-    name: string;
-    arguments: string;
-  };
-};
-
-export type InvokeResult = {
-  id: string;
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: Role;
-      content: string | Array<TextContent | ImageContent | FileContent>;
-      tool_calls?: ToolCall[];
-    };
-    finish_reason: string | null;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-};
-
-export type JsonSchema = {
-  name: string;
-  schema: Record<string, unknown>;
-  strict?: boolean;
-};
-
-export type OutputSchema = JsonSchema;
-
-export type ResponseFormat =
-  | { type: "text" }
-  | { type: "json_object" }
-  | { type: "json_schema"; json_schema: JsonSchema };
-
-const ensureArray = (
-  value: MessageContent | MessageContent[]
-): MessageContent[] => (Array.isArray(value) ? value : [value]);
-
-const normalizeContentPart = (
-  part: MessageContent
-): TextContent | ImageContent | FileContent => {
-  if (typeof part === "string") {
-    return { type: "text", text: part };
-  }
-
-  if (part.type === "text") {
-    return part;
-  }
-
-  if (part.type === "image_url") {
-    return part;
-  }
-
-  if (part.type === "file_url") {
-    return part;
-  }
-
-  throw new Error("Unsupported message content part");
-};
-
-const normalizeMessage = (message: Message) => {
-  const { role, name, tool_call_id } = message;
-
-  if (role === "tool" || role === "function") {
-    const content = ensureArray(message.content)
-      .map(part => (typeof part === "string" ? part : JSON.stringify(part)))
-      .join("\n");
-
-    return {
-      role,
-      name,
-      tool_call_id,
-      content,
-    };
-  }
-
-  const contentParts = ensureArray(message.content).map(normalizeContentPart);
-
-  // If there's only text content, collapse to a single string for compatibility
-  if (contentParts.length === 1 && contentParts[0].type === "text") {
-    return {
-      role,
-      name,
-      content: contentParts[0].text,
-    };
-  }
-
-  return {
-    role,
-    name,
-    content: contentParts,
-  };
-};
-
-const normalizeToolChoice = (
-  toolChoice: ToolChoice | undefined,
-  tools: Tool[] | undefined
-): "none" | "auto" | ToolChoiceExplicit | undefined => {
-  if (!toolChoice) return undefined;
-
-  if (toolChoice === "none" || toolChoice === "auto") {
-    return toolChoice;
-  }
-
-  if (toolChoice === "required") {
-    if (!tools || tools.length === 0) {
-      throw new Error(
-        "tool_choice 'required' was provided but no tools were configured"
-      );
-    }
-
-    if (tools.length > 1) {
-      throw new Error(
-        "tool_choice 'required' needs a single tool or specify the tool name explicitly"
-      );
-    }
-
-    return {
-      type: "function",
-      function: { name: tools[0].function.name },
-    };
-  }
-
-  if ("name" in toolChoice) {
-    return {
-      type: "function",
-      function: { name: toolChoice.name },
-    };
-  }
-
-  return toolChoice;
-};
-
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
-
-const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
-};
-
-const normalizeResponseFormat = ({
-  responseFormat,
-  response_format,
-  outputSchema,
-  output_schema,
-}: {
-  responseFormat?: ResponseFormat;
-  response_format?: ResponseFormat;
-  outputSchema?: OutputSchema;
-  output_schema?: OutputSchema;
-}):
-  | { type: "json_schema"; json_schema: JsonSchema }
-  | { type: "text" }
-  | { type: "json_object" }
-  | undefined => {
-  const explicitFormat = responseFormat || response_format;
-  if (explicitFormat) {
-    if (
-      explicitFormat.type === "json_schema" &&
-      !explicitFormat.json_schema?.schema
-    ) {
-      throw new Error(
-        "responseFormat json_schema requires a defined schema object"
-      );
-    }
-    return explicitFormat;
-  }
-
-  const schema = outputSchema || output_schema;
-  if (!schema) return undefined;
-
-  if (!schema.name || !schema.schema) {
-    throw new Error("outputSchema requires both name and schema");
-  }
-
-  return {
-    type: "json_schema",
-    json_schema: {
-      name: schema.name,
-      schema: schema.schema,
-      ...(typeof schema.strict === "boolean" ? { strict: schema.strict } : {}),
-    },
-  };
-};
-
-export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
-
-  const {
+// ── Chat simples ─────────────────────────────────────────────
+export async function chat(
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+  options?: { temperature?: number; maxTokens?: number }
+): Promise<string> {
+  const response = await openai.chat.completions.create({
+    model: MODEL,
     messages,
-    tools,
-    toolChoice,
-    tool_choice,
-    outputSchema,
-    output_schema,
-    responseFormat,
-    response_format,
-  } = params;
-
-  const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
-    messages: messages.map(normalizeMessage),
-  };
-
-  if (tools && tools.length > 0) {
-    payload.tools = tools;
-  }
-
-  const normalizedToolChoice = normalizeToolChoice(
-    toolChoice || tool_choice,
-    tools
-  );
-  if (normalizedToolChoice) {
-    payload.tool_choice = normalizedToolChoice;
-  }
-
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
-
-  const normalizedResponseFormat = normalizeResponseFormat({
-    responseFormat,
-    response_format,
-    outputSchema,
-    output_schema,
+    temperature: options?.temperature ?? 0.7,
+    max_tokens: options?.maxTokens ?? 1000,
   });
 
-  if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
-  }
+  return response.choices[0]?.message?.content ?? "";
+}
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+// ── Análise clínica (resumo de sessão) ───────────────────────
+export async function analyzeClinicalSession(sessionNotes: string): Promise<{
+  summary: string;
+  keyThemes: string[];
+  suggestedInterventions: string[];
+  nextSteps: string;
+}> {
+  const response = await chat([
+    {
+      role: "system",
+      content: `Você é um assistente clínico especializado em psicologia.
+Analise as notas de sessão fornecidas e retorne um JSON com:
+- summary: resumo objetivo da sessão (2-3 frases)
+- keyThemes: lista de temas principais identificados (array de strings)
+- suggestedInterventions: intervenções terapêuticas sugeridas (array de strings)
+- nextSteps: próximos passos recomendados (string)
+Responda APENAS com JSON válido, sem markdown.`,
     },
-    body: JSON.stringify(payload),
-  });
+    {
+      role: "user",
+      content: `Notas da sessão:\n${sessionNotes}`,
+    },
+  ]);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+  try {
+    return JSON.parse(response);
+  } catch {
+    return {
+      summary: response,
+      keyThemes: [],
+      suggestedInterventions: [],
+      nextSteps: "",
+    };
   }
+}
 
-  return (await response.json()) as InvokeResult;
+// ── Assistente clínico em tempo real ─────────────────────────
+export async function clinicalAssistant(
+  input: string,
+  context: {
+    patientHistory?: string;
+    sessionTranscript?: string;
+    approach?: string;
+  }
+): Promise<string> {
+  const systemPrompt = `Você é o Assistente Clínico da Psicóloga Daniela Coelho.
+Abordagem terapêutica principal: ${context.approach ?? "TCC"}.
+${context.patientHistory ? `Histórico do paciente: ${context.patientHistory}` : ""}
+${context.sessionTranscript ? `Transcrição atual: ${context.sessionTranscript}` : ""}
+
+Forneça sugestões breves, práticas e baseadas em evidências.
+Seja conciso e direto.`;
+
+  return await chat([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: input },
+  ]);
+}
+
+// ── Assistente de carro ───────────────────────────────────────
+export async function carAssistant(
+  input: string,
+  context?: { location?: string; vehicleInfo?: string }
+): Promise<string> {
+  const systemPrompt = `Você é um assistente inteligente para motoristas.
+${context?.location ? `Localização atual: ${context.location}` : ""}
+${context?.vehicleInfo ? `Veículo: ${context.vehicleInfo}` : ""}
+
+Responda de forma clara e segura. Se a pergunta envolver segurança no trânsito,
+priorize sempre a segurança. Seja breve pois o usuário pode estar dirigindo.`;
+
+  return await chat([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: input },
+  ]);
+}
+
+// ── Detecção de emoção ────────────────────────────────────────
+export async function detectEmotion(text: string): Promise<{
+  emotion: string;
+  intensity: number;
+  sentiment: "positive" | "negative" | "neutral";
+}> {
+  const response = await chat(
+    [
+      {
+        role: "system",
+        content: `Analise o texto e retorne JSON com:
+- emotion: emoção principal detectada (string em português)
+- intensity: intensidade de 0 a 1 (número)
+- sentiment: "positive", "negative" ou "neutral"
+Responda APENAS com JSON válido.`,
+      },
+      { role: "user", content: text },
+    ],
+    { temperature: 0.3 }
+  );
+
+  try {
+    return JSON.parse(response);
+  } catch {
+    return { emotion: "neutro", intensity: 0.5, sentiment: "neutral" };
+  }
+}
+
+// ── Geração de conteúdo (growth engine) ──────────────────────
+export async function generateContent(prompt: string, style?: string): Promise<string> {
+  return await chat(
+    [
+      {
+        role: "system",
+        content: `Você é um especialista em criação de conteúdo para redes sociais.
+${style ? `Estilo: ${style}` : "Estilo: educativo, empático, profissional"}
+Crie conteúdo engajante e autêntico.`,
+      },
+      { role: "user", content: prompt },
+    ],
+    { temperature: 0.9 }
+  );
+}
+
+// ── Health check do LLM ───────────────────────────────────────
+export async function checkLLMHealth(): Promise<boolean> {
+  try {
+    await chat([{ role: "user", content: "ping" }], { maxTokens: 5 });
+    return true;
+  } catch {
+    return false;
+  }
 }
