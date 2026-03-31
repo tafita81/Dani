@@ -1,499 +1,413 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { trpc } from "../lib/trpc";
-import { toast } from "react-hot-toast";
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { ScrollArea } from "../components/ui/scroll-area";
-import { Mic, MicOff, CheckCircle, Brain, User, FileText, Activity, Clock, Search, Lock, Unlock, UserPlus, Save, X, Phone, Mail, Calendar, Heart } from "lucide-react";
-import { Badge } from "../components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import React, { useState, useEffect, useRef } from 'react';
+import { toast } from 'react-hot-toast';
+import { Mic, MicOff, Plus, Search, LogOut, Save } from 'lucide-react';
 
-interface TranscriptionEntry {
-  id: string;
-  role: "client" | "therapist" | "assistant";
-  content: string;
-  timestamp: Date;
-  type?: "transcription" | "analysis" | "summary";
+interface Client {
+  id: number;
+  name: string;
+  primaryApproach: string;
+  status: string;
 }
 
-export default function Assistant() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [entries, setEntries] = useState<TranscriptionEntry[]>([]);
-  const [currentTranscript, setCurrentTranscript] = useState("");
-  const [clientId, setClientId] = useState<number | null>(null);
-  const [isEndingSession, setIsEndingSession] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isClientConfirmed, setIsClientConfirmed] = useState(false);
-  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+interface SessionState {
+  clientId: number | null;
+  clientName: string | null;
+  isRecording: boolean;
+  isMuted: boolean;
+  transcription: string[];
+  insights: string[];
+  sessionStartTime: Date | null;
+}
 
-  // Estado do formulário de novo cliente
-  const [newPatient, setNewPatient] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    birthDate: "",
-    gender: "",
-    primaryApproach: "TCC",
-    complaint: "",
+export default function AssistantClinico() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [filteredClients, setFilteredClients] = useState<Client[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [sessionState, setSessionState] = useState<SessionState>({
+    clientId: null,
+    clientName: null,
+    isRecording: false,
+    isMuted: false,
+    transcription: [],
+    insights: [],
+    sessionStartTime: null,
   });
 
-  const recognitionRef = useRef<any>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Queries e Mutations
-  const utils = trpc.useUtils();
-  const { data: patients, isLoading: loadingPatients } = trpc.clinicalAssistant.listPatients.useQuery();
-  const createPatientMutation = trpc.clinicalAssistant.createPatient.useMutation();
-  const analyzeMutation = trpc.clinicalAssistant.analyzeTranscript.useMutation();
-  const endSessionMutation = trpc.clinicalAssistant.endSession.useMutation();
-
-  // Filtro de pacientes por nome
-  const filteredPatients = useMemo(() => {
-    if (!patients) return [];
-    return patients.filter(p => 
-      p.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [patients, searchTerm]);
-
-  const selectedPatient = patients?.find(p => p.id === patientId);
-
-  // ─── Cadastro de Novo Cliente ───
-  const handleCreatePatient = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPatient.name) {
-      toast.error("O nome do cliente é obrigatório");
-      return;
-    }
-
-    try {
-      const created = await createPatientMutation.mutateAsync(newPatient);
-      await utils.clinicalAssistant.listPatients.invalidate();
-      setPatientId(created.id);
-      setIsRegisterModalOpen(false);
-      setNewPatient({ name: "", email: "", phone: "", birthDate: "", gender: "", primaryApproach: "TCC", complaint: "" });
-      toast.success("Cliente cadastrado e selecionado com sucesso!");
-    } catch (error) {
-      toast.error("Erro ao cadastrar cliente");
-    }
-  };
-
-  // ─── Captura de Voz Contínua ───
-  const startRecording = useCallback(() => {
-    if (!isPatientConfirmed) {
-      toast.error("Confirme o cliente antes de iniciar a captura");
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error("Web Speech API não suportada neste navegador");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = "pt-BR";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = async (event: any) => {
-      let interimTranscript = "";
-      let finalTranscript = "";
-
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
-      }
-
-      if (finalTranscript) {
-        const userEntry: TranscriptionEntry = {
-          id: `trans-${Date.now()}`,
-          role: "patient",
-          content: finalTranscript,
-          timestamp: new Date(),
-          type: "transcription",
-        };
-        setEntries((prev) => [...prev, userEntry]);
-
-        try {
-          const response = await analyzeMutation.mutateAsync({
-            transcript: finalTranscript,
-            patientId: patientId!,
-          });
-
-          const aiEntry: TranscriptionEntry = {
-            id: `ai-${Date.now()}`,
-            role: "assistant",
-            content: response.response,
-            timestamp: new Date(),
-            type: "analysis",
-          };
-          setEntries((prev) => [...prev, aiEntry]);
-        } catch (e) {
-          console.error("Erro na análise técnica:", e);
-        }
-      }
-      setCurrentTranscript(interimTranscript);
-    };
-
-    recognition.onend = () => {
-      if (isRecording) recognition.start();
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsRecording(true);
-    toast.success("Captura de áudio ativa");
-  }, [isRecording, patientId, isPatientConfirmed]);
-
-  const stopRecording = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-      toast.info("Captura pausada");
-    }
+  // Buscar lista de clientes (simulado)
+  useEffect(() => {
+    // Simulação de clientes para teste
+    const mockClients: Client[] = [
+      { id: 1, name: 'Maria Silva', primaryApproach: 'TCC', status: 'active' },
+      { id: 2, name: 'João Santos', primaryApproach: 'Gestalt', status: 'active' },
+      { id: 3, name: 'Ana Costa', primaryApproach: 'Esquema', status: 'inactive' },
+    ];
+    setClients(mockClients);
+    setFilteredClients(mockClients);
   }, []);
 
-  // ─── Confirmar Paciente e Iniciar Sessão ───
-  const confirmPatient = () => {
-    if (!patientId) {
-      toast.error("Selecione um paciente");
-      return;
+
+
+  // Filtrar clientes por busca
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredClients(clients);
+    } else {
+      setFilteredClients(
+        clients.filter((c) =>
+          c.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
     }
-    setIsPatientConfirmed(true);
-    setSessionStartTime(new Date());
-    toast.success(`Consulta com ${selectedPatient?.name} confirmada!`);
+  }, [searchTerm, clients]);
+
+  // Iniciar sessão com cliente
+  const handleStartSession = async (clientId: number) => {
+    const selectedClient = clients.find((c) => c.id === clientId);
+    if (!selectedClient) return;
+
+    setSessionState((prev) => ({
+      ...prev,
+      clientId,
+      clientName: selectedClient.name,
+      sessionStartTime: new Date(),
+    }));
+
+    // Iniciar captura de áudio
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        // Processar áudio para transcrição
+        processAudioChunk(event.data, clientId);
+      };
+
+      mediaRecorder.start(1000); // Processar a cada 1 segundo
+      setSessionState((prev) => ({ ...prev, isRecording: true }));
+      toast.success(`Sessão iniciada com ${selectedClient.name}`);
+    } catch (error) {
+      toast.error('Erro ao acessar microfone');
+    }
   };
 
-  const resetSelection = () => {
-    if (isRecording) {
-      toast.error("Pare a captura antes de trocar de paciente");
-      return;
-    }
-    setIsPatientConfirmed(false);
-    setSessionStartTime(null);
-    setEntries([]);
-  };
+  // Processar chunk de áudio
+  const processAudioChunk = async (audioData: Blob, clientId: number) => {
+    if (sessionState.isMuted) return;
 
-  // ─── Encerramento de Consulta ───
-  const handleEndSession = async () => {
-    if (!patientId) return;
-    setIsEndingSession(true);
-    stopRecording();
-
-    const fullTranscript = entries
-      .filter(e => e.type === "transcription")
-      .map(e => `${e.role === "patient" ? "Paciente" : "Terapeuta"}: ${e.content}`)
-      .join("\n");
+    // Enviar para backend para transcrição e análise
+    const formData = new FormData();
+    formData.append('audio', audioData);
+    formData.append('clientId', clientId.toString());
 
     try {
-      const response = await endSessionMutation.mutateAsync({
-        patientId,
-        fullTranscript,
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
       });
 
-      const summaryEntry: TranscriptionEntry = {
-        id: `summary-${Date.now()}`,
-        role: "assistant",
-        content: response.summary,
-        timestamp: new Date(),
-        type: "summary",
-      };
-      setEntries((prev) => [...prev, summaryEntry]);
-      toast.success("Prontuário salvo com sucesso!");
-    } catch (e) {
-      toast.error("Erro ao salvar consulta");
-    } finally {
-      setIsEndingSession(false);
+      if (response.ok) {
+        const { transcription, insights } = await response.json();
+        setSessionState((prev) => ({
+          ...prev,
+          transcription: [...prev.transcription, transcription],
+          insights: [...prev.insights, ...insights],
+        }));
+      }
+    } catch (error) {
+      console.error('Erro ao transcrever:', error);
     }
   };
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [entries, currentTranscript]);
+  // Encerrar sessão
+  const handleEndSession = async () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+    }
+
+    // Salvar sessão no banco de dados
+    if (sessionState.clientId && sessionState.sessionStartTime) {
+      try {
+        await trpc.clinicalAssistant.endSession.mutate({
+          clientId: sessionState.clientId,
+          transcription: sessionState.transcription.join('\n'),
+          insights: sessionState.insights.join('\n'),
+          startTime: sessionState.sessionStartTime,
+          endTime: new Date(),
+        });
+
+        toast.success('Sessão finalizada e salva com sucesso');
+        setSessionState({
+          clientId: null,
+          clientName: null,
+          isRecording: false,
+          isMuted: false,
+          transcription: [],
+          insights: [],
+          sessionStartTime: null,
+        });
+      } catch (error) {
+        toast.error('Erro ao salvar sessão');
+      }
+    }
+  };
+
+  // Tela de seleção de cliente
+  if (!sessionState.clientId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+        <div className="max-w-2xl mx-auto">
+          {/* Cabeçalho */}
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              Estrategista Clínico
+            </h1>
+            <p className="text-gray-600">Selecione um cliente para iniciar a sessão</p>
+          </div>
+
+          {/* Botão Novo Cliente */}
+          <button
+            onClick={() => setShowNewClientForm(!showNewClientForm)}
+            className="w-full mb-6 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+          >
+            <Plus size={20} />
+            Novo Cliente
+          </button>
+
+          {/* Formulário Novo Cliente */}
+          {showNewClientForm && (
+            <NewClientForm
+              onSuccess={() => {
+                setShowNewClientForm(false);
+                // Recarregar lista de clientes
+              }}
+            />
+          )}
+
+          {/* Busca de Cliente */}
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Buscar cliente por nome..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Lista de Clientes */}
+          <div className="space-y-3">
+            {filteredClients.length > 0 ? (
+              filteredClients.map((client) => (
+                <button
+                  key={client.id}
+                  onClick={() => handleStartSession(client.id)}
+                  className="w-full bg-white hover:bg-blue-50 border-2 border-gray-200 hover:border-blue-500 rounded-lg p-4 text-left transition"
+                >
+                  <div className="font-bold text-gray-800">{client.name}</div>
+                  <div className="text-sm text-gray-600">
+                    Abordagem: {client.primaryApproach}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Status: {client.status}
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                Nenhum cliente encontrado
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Tela de sessão ativa
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Cabeçalho da Sessão */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">
+                {sessionState.clientName}
+              </h1>
+              <p className="text-gray-600">
+                Sessão iniciada às{' '}
+                {sessionState.sessionStartTime?.toLocaleTimeString()}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  setSessionState((prev) => ({
+                    ...prev,
+                    isMuted: !prev.isMuted,
+                  }))
+                }
+                className={`p-3 rounded-full ${
+                  sessionState.isMuted
+                    ? 'bg-red-500 text-white'
+                    : 'bg-gray-200 text-gray-800'
+                }`}
+              >
+                {sessionState.isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+              </button>
+              <button
+                onClick={handleEndSession}
+                className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition"
+              >
+                <LogOut size={20} />
+                Encerrar Sessão
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Painel de Transcrição */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Transcrição */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Transcrição</h2>
+            <div className="bg-gray-50 rounded p-4 h-96 overflow-y-auto">
+              {sessionState.transcription.length > 0 ? (
+                sessionState.transcription.map((line, idx) => (
+                  <p key={idx} className="text-gray-700 mb-2 text-sm">
+                    {line}
+                  </p>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-8">
+                  Aguardando transcrição...
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Insights Clínicos */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">
+              Insights Clínicos
+            </h2>
+            <div className="bg-green-50 rounded p-4 h-96 overflow-y-auto">
+              {sessionState.insights.length > 0 ? (
+                sessionState.insights.map((insight, idx) => (
+                  <div key={idx} className="mb-3 p-2 bg-white rounded border-l-4 border-green-500">
+                    <p className="text-gray-700 text-sm">{insight}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-8">
+                  Analisando em tempo real...
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente de Formulário de Novo Cliente
+function NewClientForm({ onSuccess }: { onSuccess: () => void }) {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+    primaryApproach: 'integrativa',
+    mainComplaint: '',
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Simular cadastro
+      const newClient: Client = {
+        id: Math.random(),
+        name: formData.name,
+        primaryApproach: formData.primaryApproach,
+        status: 'active',
+      };
+      toast.success('Cliente cadastrado com sucesso');
+      onSuccess();
+    } catch (error) {
+      toast.error('Erro ao cadastrar cliente');
+    }
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 p-4 md:p-6">
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-100 rounded-lg">
-            <Brain className="w-6 h-6 text-indigo-600" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Estrategista Clínico V5.0</h1>
-            <p className="text-sm text-slate-500">Inteligência Profissional - Psi. Daniela Coelho</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {!isPatientConfirmed ? (
-            <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
-              <div className="relative w-40">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Buscar..."
-                  className="pl-8 h-9 border-none bg-transparent focus-visible:ring-0 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select 
-                onValueChange={(val) => setPatientId(Number(val))} 
-                value={patientId?.toString()}
-              >
-                <SelectTrigger className="w-40 h-9 border-none bg-white shadow-none text-sm">
-                  <SelectValue placeholder="Escolher..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredPatients.map((p) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                  {filteredPatients.length === 0 && (
-                    <div className="p-2 text-xs text-slate-400 text-center">Nenhum encontrado</div>
-                  )}
-                </SelectContent>
-              </Select>
-
-              {/* Modal de Cadastro de Novo Paciente */}
-              <Dialog open={isRegisterModalOpen} onOpenChange={setIsRegisterModalOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
-                    <UserPlus className="w-4 h-4 mr-1" /> Novo
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <UserPlus className="w-5 h-5 text-indigo-600" />
-                      Cadastro de Novo Paciente (Padrão Clínico)
-                    </DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleCreatePatient} className="space-y-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2 space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Nome Completo</label>
-                        <Input 
-                          placeholder="Ex: Maria Silva" 
-                          value={newPatient.name}
-                          onChange={e => setNewPatient({...newPatient, name: e.target.value})}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Telefone</label>
-                        <Input 
-                          placeholder="(11) 99999-9999" 
-                          value={newPatient.phone}
-                          onChange={e => setNewPatient({...newPatient, phone: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Data Nasc.</label>
-                        <Input 
-                          type="date" 
-                          value={newPatient.birthDate}
-                          onChange={e => setNewPatient({...newPatient, birthDate: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Gênero</label>
-                        <Select onValueChange={v => setNewPatient({...newPatient, gender: v})}>
-                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Feminino">Feminino</SelectItem>
-                            <SelectItem value="Masculino">Masculino</SelectItem>
-                            <SelectItem value="Outro">Outro</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Abordagem</label>
-                        <Select onValueChange={v => setNewPatient({...newPatient, primaryApproach: v})} defaultValue="TCC">
-                          <SelectTrigger><SelectValue placeholder="TCC" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="TCC">TCC</SelectItem>
-                            <SelectItem value="Gestalt">Gestalt</SelectItem>
-                            <SelectItem value="Psicanálise">Psicanálise</SelectItem>
-                            <SelectItem value="Esquema">Terapia do Esquema</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Queixa Principal / Observações</label>
-                        <Textarea 
-                          placeholder="Relate brevemente o motivo da busca por terapia..." 
-                          className="h-20"
-                          value={newPatient.complaint}
-                          onChange={e => setNewPatient({...newPatient, complaint: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-3 pt-4 border-t">
-                      <Button type="button" variant="ghost" onClick={() => setIsRegisterModalOpen(false)}>Cancelar</Button>
-                      <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
-                        <Save className="w-4 h-4 mr-2" /> Salvar e Selecionar
-                      </Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
-
-              <Button size="sm" onClick={confirmPatient} disabled={!patientId} className="h-8 gap-1 px-4 bg-indigo-600 hover:bg-indigo-700">
-                <CheckCircle className="w-3.5 h-3.5" /> Iniciar
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm">
-              <Lock className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="text-sm font-bold text-indigo-700">{selectedPatient?.name}</span>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-100/50" onClick={resetSelection} disabled={isRecording}>
-                <Unlock className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          )}
-
-          {isPatientConfirmed && (
-            <>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
-                <Clock className="w-3.5 h-3.5" />
-                {sessionStartTime?.toLocaleTimeString()}
-              </div>
-              <Button
-                variant={isRecording ? "destructive" : "default"}
-                onClick={isRecording ? stopRecording : startRecording}
-                className="flex gap-2 font-bold"
-                disabled={isEndingSession}
-              >
-                {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                {isRecording ? "PAUSAR" : "GRAVAR ÁUDIO"}
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleEndSession} 
-                disabled={isEndingSession || entries.length === 0}
-                className="flex gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold"
-              >
-                <CheckCircle className="w-4 h-4" />
-                ENCERRAR CONSULTA
-              </Button>
-            </>
-          )}
-        </div>
-      </header>
-
-      {isPatientConfirmed && selectedPatient && (
-        <div className="mb-4 flex gap-3 overflow-x-auto pb-2">
-          <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 px-3 py-1 flex gap-2 shrink-0 shadow-sm">
-            <User className="w-3 h-3 text-indigo-500" /> {selectedPatient.name}
-          </Badge>
-          <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 px-3 py-1 flex gap-2 shrink-0 shadow-sm">
-            <Heart className="w-3 h-3 text-rose-400" /> Abordagem: {selectedPatient.primaryApproach || "Integrativa"}
-          </Badge>
-          <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 px-3 py-1 flex gap-2 shrink-0 shadow-sm">
-            <Calendar className="w-3 h-3 text-amber-500" /> {selectedPatient.totalSessions || 0} sessões
-          </Badge>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden">
-        {/* Painel de Transcrição */}
-        <Card className="flex flex-col overflow-hidden border-slate-200 shadow-sm">
-          <CardHeader className="bg-slate-50/50 border-b py-3">
-            <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <FileText className="w-3 h-3" />
-              Registro de Transcrição Contínua
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <ScrollArea className="h-full p-4">
-              <div className="space-y-4">
-                {entries.filter(e => e.type === "transcription").map((entry) => (
-                  <div key={entry.id} className="flex gap-3">
-                    <div className="mt-1">
-                      <User className="w-4 h-4 text-slate-300" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600 leading-relaxed">{entry.content}</p>
-                      <span className="text-[9px] text-slate-400 font-medium">{entry.timestamp.toLocaleTimeString()}</span>
-                    </div>
-                  </div>
-                ))}
-                {currentTranscript && (
-                  <div className="flex gap-3 opacity-40">
-                    <User className="w-4 h-4 text-slate-300" />
-                    <p className="text-sm text-slate-400 italic">{currentTranscript}...</p>
-                  </div>
-                )}
-                {!isPatientConfirmed && (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-3 mt-20">
-                    <UserPlus className="w-16 h-16 opacity-10" />
-                    <p className="text-sm font-bold">Busque ou cadastre um paciente para começar</p>
-                  </div>
-                )}
-                <div ref={scrollRef} />
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Painel de Inteligência Clínica */}
-        <Card className="flex flex-col overflow-hidden border-indigo-100 shadow-lg ring-1 ring-indigo-50/50">
-          <CardHeader className="bg-indigo-50/30 border-b border-indigo-100 py-3">
-            <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 flex items-center gap-2">
-              <Brain className="w-3 h-3" />
-              Insights Estratégicos e Análise de Histórico
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <ScrollArea className="h-full p-4">
-              <div className="space-y-4">
-                {entries.filter(e => e.type === "analysis" || e.type === "summary").map((entry) => (
-                  <div 
-                    key={entry.id} 
-                    className={`p-5 rounded-xl border ${
-                      entry.type === "summary" 
-                        ? "bg-emerald-50 border-emerald-100 text-emerald-900 shadow-sm" 
-                        : "bg-white border-indigo-50 text-slate-800 shadow-sm"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <Badge variant={entry.type === "summary" ? "default" : "outline"} className={entry.type === "summary" ? "bg-emerald-600" : "text-indigo-500 border-indigo-100"}>
-                        {entry.type === "summary" ? "EVOLUÇÃO FINAL" : "ANÁLISE EM TEMPO REAL"}
-                      </Badge>
-                      <span className="text-[10px] text-slate-400 font-bold">{entry.timestamp.toLocaleTimeString()}</span>
-                    </div>
-                    <div className="text-sm whitespace-pre-wrap leading-relaxed font-medium">
-                      {entry.content}
-                    </div>
-                  </div>
-                ))}
-                {isPatientConfirmed && entries.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-3 mt-20">
-                    <Activity className="w-12 h-12 opacity-10 animate-pulse" />
-                    <p className="text-sm italic">Ouvindo e comparando com histórico...</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
-
-      <footer className="mt-6 flex items-center justify-between text-[10px] text-slate-400 bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Sessão: {new Date().toLocaleDateString()}</span>
-          <span className="flex items-center gap-1 text-emerald-600 font-bold"><CheckCircle className="w-3 h-3" /> Prontuário Digital Conectado</span>
-        </div>
-        <p className="font-bold">Estrategista Clínico Profissional v5.0 - Dra. Daniela Coelho</p>
-      </footer>
+    <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">Novo Cliente</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          type="text"
+          placeholder="Nome completo"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+        <input
+          type="email"
+          placeholder="E-mail"
+          value={formData.email}
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="tel"
+          placeholder="Telefone"
+          value={formData.phone}
+          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="date"
+          value={formData.dateOfBirth}
+          onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <select
+          value={formData.primaryApproach}
+          onChange={(e) =>
+            setFormData({ ...formData, primaryApproach: e.target.value })
+          }
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="tcc">TCC (Terapia Cognitivo-Comportamental)</option>
+          <option value="terapia_esquema">Terapia do Esquema</option>
+          <option value="gestalt">Gestalt</option>
+          <option value="integrativa">Integrativa</option>
+        </select>
+        <textarea
+          placeholder="Queixa principal"
+          value={formData.mainComplaint}
+          onChange={(e) =>
+            setFormData({ ...formData, mainComplaint: e.target.value })
+          }
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
+        />
+        <button
+          type="submit"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+        >
+          <Save size={20} />
+          Salvar e Selecionar
+        </button>
+      </form>
     </div>
   );
 }
