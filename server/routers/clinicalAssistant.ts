@@ -20,12 +20,20 @@ export const clinicalAssistantRouter = router({
       gender: z.string().optional(),
       primaryApproach: z.string().optional(),
       complaint: z.string().optional(),
-      status: z.string().default("Ativo"),
+      status: z.string().default("active"),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Mapear birthDate para dateOfBirth se necessário no schema
       return db.createPatient({
         userId: ctx.user.id,
-        ...input,
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        dateOfBirth: input.birthDate,
+        gender: input.gender,
+        primaryApproach: input.primaryApproach as any,
+        complaint: input.complaint,
+        status: input.status as any,
         createdAt: new Date(),
         totalSessions: 0,
       } as any);
@@ -35,39 +43,30 @@ export const clinicalAssistantRouter = router({
   analyzeTranscript: protectedProcedure
     .input(z.object({ 
       transcript: z.string().min(1),
-      patientId: z.number().optional(),
+      patientId: z.number(), // Agora obrigatório para interligação
     }))
     .mutation(async ({ ctx, input }) => {
-      let patientContext = "";
-      let clinicalHistory = "";
-      let pastEvolutions = "";
+      // Recuperar contexto completo pelo patientId
+      const context = await db.getPatientFullContext(ctx.user.id, input.patientId);
+      
+      if (!context.patient) throw new Error("Paciente não encontrado ou acesso negado.");
 
-      if (input.patientId) {
-        const [patient, evolutions, notes] = await Promise.all([
-          db.getPatientById(ctx.user.id, input.patientId),
-          db.getSessionEvolutions(ctx.user.id, input.patientId),
-          db.getSessionNotes(ctx.user.id, input.patientId)
-        ]);
+      const patientContext = `PACIENTE: ${context.patient.name}
+ABORDAGEM: ${context.patient.primaryApproach || "Integrativa"}
+STATUS: ${context.patient.status}
+TOTAL DE SESSÕES: ${context.patient.totalSessions || 0}\n`;
 
-        if (patient) {
-          patientContext = `PACIENTE: ${patient.name}
-ABORDAGEM: ${patient.primaryApproach || "Integrativa"}
-STATUS: ${patient.status}
-TOTAL DE SESSÕES: ${patient.totalSessions || 0}\n`;
-        }
+      // Pegar as últimas 5 evoluções para contexto de eficácia
+      const pastEvolutions = context.history && context.history.length > 0
+        ? "\n--- HISTÓRICO DE EVOLUÇÕES E INSIGHTS ANTERIORES ---\n" + 
+          context.history.slice(0, 5).map(e => `[${new Date(e.createdAt).toLocaleDateString()}]: ${e.content}`).join("\n\n")
+        : "";
 
-        // Pegar as últimas 5 evoluções para contexto de eficácia
-        if (evolutions && evolutions.length > 0) {
-          pastEvolutions = "\n--- HISTÓRICO DE EVOLUÇÕES E INSIGHTS ANTERIORES ---\n" + 
-            evolutions.slice(0, 5).map(e => `[${new Date(e.createdAt).toLocaleDateString()}]: ${e.content}`).join("\n\n");
-        }
-
-        // Pegar as últimas transcrições para continuidade
-        if (notes && notes.length > 0) {
-          clinicalHistory = "\n--- CONTEXTO DAS ÚLTIMAS SESSÕES ---\n" + 
-            notes.slice(0, 3).map(n => `[Sessão ${new Date(n.createdAt).toLocaleDateString()}]: ${n.content.substring(0, 200)}...`).join("\n");
-        }
-      }
+      // Pegar as últimas transcrições para continuidade
+      const clinicalHistory = context.transcripts && context.transcripts.length > 0
+        ? "\n--- CONTEXTO DAS ÚLTIMAS SESSÕES ---\n" + 
+          context.transcripts.slice(0, 3).map(n => `[Sessão ${new Date(n.createdAt).toLocaleDateString()}]: ${n.text?.substring(0, 200)}...`).join("\n")
+        : "";
 
       const systemPrompt = `VOCÊ É O ESTRATEGISTA CLÍNICO CONECTADO DA PSI. DANIELA COELHO.
 SUA FUNÇÃO É ANALISAR A SESSÃO ATUAL INTEGRANDO TODO O HISTÓRICO DO PACIENTE.
@@ -102,16 +101,23 @@ TRANSCRIÇÃO EM TEMPO REAL:`;
         ? result.choices[0].message.content
         : "Analisando contexto...";
 
-      // Persistência imediata
-      if (input.patientId) {
-        await db.createSessionNote({
-          userId: ctx.user.id,
-          patientId: input.patientId,
-          content: input.transcript,
-          type: "transcription",
-          createdAt: new Date()
-        } as any);
-      }
+      // Persistência imediata vinculada ao patientId
+      await db.createSessionNote({
+        userId: ctx.user.id,
+        patientId: input.patientId,
+        text: input.transcript,
+        type: "transcript",
+        createdAt: new Date()
+      } as any);
+
+      // Salvar o insight técnico gerado também vinculado ao patientId
+      await db.createSessionEvolution({
+        userId: ctx.user.id,
+        patientId: input.patientId,
+        content: response,
+        type: "insight_realtime",
+        createdAt: new Date()
+      } as any);
 
       return { response };
     }),
@@ -146,6 +152,7 @@ ${input.fullTranscript}`;
         ? result.choices[0].message.content
         : "Resumo não gerado.";
 
+      // Salvar evolução final vinculada ao patientId
       await db.createSessionEvolution({
         userId: ctx.user.id,
         patientId: input.patientId,
