@@ -4,7 +4,7 @@ import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 
 export const clinicalAssistantRouter = router({
-  // 1. Processamento de Transcrição em Tempo Real (Silencioso e Técnico)
+  // 1. Processamento de Transcrição com Memória Clínica Profunda
   analyzeTranscript: protectedProcedure
     .input(z.object({ 
       transcript: z.string().min(1),
@@ -12,30 +12,56 @@ export const clinicalAssistantRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       let patientContext = "";
+      let clinicalHistory = "";
+      let pastEvolutions = "";
+
       if (input.patientId) {
-        const patient = await db.getPatientById(ctx.user.id, input.patientId);
+        const [patient, evolutions, notes] = await Promise.all([
+          db.getPatientById(ctx.user.id, input.patientId),
+          db.getSessionEvolutions(ctx.user.id, input.patientId),
+          db.getSessionNotes(ctx.user.id, input.patientId)
+        ]);
+
         if (patient) {
-          patientContext = `PACIENTE: ${patient.name} (${patient.primaryApproach || "TCC"})\n`;
+          patientContext = `PACIENTE: ${patient.name}
+ABORDAGEM: ${patient.primaryApproach || "Integrativa"}
+STATUS: ${patient.status}
+TOTAL DE SESSÕES: ${patient.totalSessions || 0}\n`;
+        }
+
+        // Pegar as últimas 5 evoluções para contexto de eficácia
+        if (evolutions && evolutions.length > 0) {
+          pastEvolutions = "\n--- HISTÓRICO DE EVOLUÇÕES E INSIGHTS ANTERIORES ---\n" + 
+            evolutions.slice(0, 5).map(e => `[${new Date(e.createdAt).toLocaleDateString()}]: ${e.content}`).join("\n\n");
+        }
+
+        // Pegar as últimas transcrições para continuidade
+        if (notes && notes.length > 0) {
+          clinicalHistory = "\n--- CONTEXTO DAS ÚLTIMAS SESSÕES ---\n" + 
+            notes.slice(0, 3).map(n => `[Sessão ${new Date(n.createdAt).toLocaleDateString()}]: ${n.content.substring(0, 200)}...`).join("\n");
         }
       }
 
-      const systemPrompt = `VOCÊ É O ANALISADOR CLÍNICO DA PSI. DANIELA COELHO.
-SUA FUNÇÃO É PROCESSAR A TRANSCRIÇÃO DE UMA SESSÃO EM TEMPO REAL E FORNECER INSIGHTS TÉCNICOS.
+      const systemPrompt = `VOCÊ É O ESTRATEGISTA CLÍNICO CONECTADO DA PSI. DANIELA COELHO.
+SUA FUNÇÃO É ANALISAR A SESSÃO ATUAL INTEGRANDO TODO O HISTÓRICO DO PACIENTE.
 
-REGRAS CRUCIAIS:
-1. VOCÊ NÃO É UM CHATBOT. NÃO USE SAUDAÇÕES OU PRIMEIRA PESSOA SOCIAL.
-2. ANALISE O CONTEÚDO SOB A ÓTICA DA PSICOLOGIA (TCC, TERAPIA DO ESQUEMA, GESTALT).
-3. IDENTIFIQUE: DISTORÇÕES COGNITIVAS, PADRÕES EMOCIONAIS E TEMAS CENTRAIS.
-4. FORNEÇA SUGESTÕES DE TÉCNICAS OU PERGUNTAS CLÍNICAS PARA A DANIELA.
-
-FORMATO DE SAÍDA:
-[INSIGHT]: (Observação técnica sobre a fala atual)
-[TÉCNICA]: (Sugestão de abordagem para a Daniela)
-[SENTIMENTO]: (Emoção predominante detectada)
-[ALERTA]: (Pontos de atenção ou riscos)
-
+CONTEXTO DO PACIENTE:
 ${patientContext}
-TRANSCRIÇÃO ATUAL:`;
+${pastEvolutions}
+${clinicalHistory}
+
+OBJETIVO:
+1. Identifique padrões recorrentes entre o que está sendo dito agora e o histórico.
+2. Sugira técnicas baseadas no que já foi tentado (veja o que deu certo ou errado no histórico).
+3. Seja um observador técnico e silencioso. NUNCA use saudações ou primeira pessoa social.
+
+FORMATO DE SAÍDA (EXCLUSIVO PARA DANIELA):
+[INSIGHT HISTÓRICO]: (Relacione a fala atual com padrões anteriores do paciente)
+[EFICÁCIA]: (Analise se a abordagem atual está funcionando baseada no histórico)
+[TÉCNICA RECOMENDADA]: (Sugira a melhor técnica para este momento específico, ex: TCC, Gestalt, Terapia do Esquema)
+[SENTIMENTO ATUAL]: (Emoção detectada agora)
+
+TRANSCRIÇÃO EM TEMPO REAL:`;
 
       const result = await invokeLLM({
         messages: [
@@ -47,9 +73,9 @@ TRANSCRIÇÃO ATUAL:`;
 
       const response = typeof result.choices[0]?.message?.content === "string"
         ? result.choices[0].message.content
-        : "Processando...";
+        : "Analisando contexto...";
 
-      // Persistência imediata da transcrição bruta
+      // Persistência imediata
       if (input.patientId) {
         await db.createSessionNote({
           userId: ctx.user.id,
@@ -63,21 +89,23 @@ TRANSCRIÇÃO ATUAL:`;
       return { response };
     }),
 
-  // 2. Encerramento de Consulta e Consolidação de Dados
+  // 2. Encerramento com Consolidação Histórica
   endSession: protectedProcedure
     .input(z.object({ 
       patientId: z.number(),
       fullTranscript: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const systemPrompt = `Você é o Supervisor Clínico da Dra. Daniela Coelho.
-Com base na transcrição completa da sessão abaixo, gere um RESUMO CLÍNICO ESTRUTURADO para o prontuário do paciente.
+      const patient = await db.getPatientById(ctx.user.id, input.patientId);
+      
+      const systemPrompt = `Você é o Supervisor Clínico Sênior.
+Gere um RESUMO CLÍNICO ESTRUTURADO consolidando a sessão de hoje com o histórico do paciente ${patient?.name || ""}.
 
-ESTRUTURA DO RESUMO:
-1. SÍNTESE DA SESSÃO: (Principais temas abordados)
-2. EVOLUÇÃO CLÍNICA: (Progresso ou retrocesso observado)
-3. INTERVENÇÕES REALIZADAS: (Técnicas utilizadas)
-4. PLANO DE AÇÃO: (Próximos passos e tarefas de casa)
+ESTRUTURA:
+1. SÍNTESE DA SESSÃO: (Principais temas)
+2. COMPARAÇÃO HISTÓRICA: (Como esta sessão se compara com o progresso anterior)
+3. TÉCNICAS APLICADAS E RESULTADO: (O que foi feito e como o paciente reagiu)
+4. PLANEJAMENTO FUTURO: (Ajustes na estratégia terapêutica)
 
 TRANSCRIÇÃO COMPLETA:
 ${input.fullTranscript}`;
@@ -91,7 +119,6 @@ ${input.fullTranscript}`;
         ? result.choices[0].message.content
         : "Resumo não gerado.";
 
-      // Salvar evolução final no banco de dados
       await db.createSessionEvolution({
         userId: ctx.user.id,
         patientId: input.patientId,
