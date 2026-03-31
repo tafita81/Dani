@@ -4,6 +4,12 @@ import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 
 export const clinicalAssistantRouter = router({
+  // Listar pacientes para o seletor
+  listPatients: protectedProcedure
+    .query(async ({ ctx }) => {
+      return db.getPatients(ctx.user.id);
+    }),
+
   // 1. Processamento de Transcrição com Memória Clínica Profunda
   analyzeTranscript: protectedProcedure
     .input(z.object({ 
