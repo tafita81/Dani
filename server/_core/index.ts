@@ -1,90 +1,65 @@
-/**
- * index.ts — Ponto de entrada do servidor
- * Corrigido: remove dependência Manus OAuth2, usa auth JWT própria
- */
-
 import "dotenv/config";
 import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
+import { createServer } from "http";
+import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { appRouter } from "../core_logic/routers.js";
-import { createContext } from "./context.js";
-import { setupAuthRoutes } from "./auth.js";
-import path from "path";
-import { fileURLToPath } from "url";
+import { registerOAuthRoutes } from "./oauth";
+import { appRouter } from "../routers";
+import { createContext } from "./context";
+import { serveStatic, setupVite } from "./vite";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = parseInt(process.env.PORT ?? "3000", 10);
-const isDev = process.env.NODE_ENV !== "production";
-
-const app = express();
-
-// ── Middlewares base ─────────────────────────────────────────
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
-    credentials: true,
-  })
-);
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-// ── Health check ─────────────────────────────────────────────
-app.get("/api/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    version: "1.2.0",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    env: process.env.NODE_ENV,
-  });
-});
-
-// ── Auth routes (JWT) ─────────────────────────────────────────
-setupAuthRoutes(app);
-
-// ── tRPC ──────────────────────────────────────────────────────
-app.use(
-  "/trpc",
-  createExpressMiddleware({
-    router: appRouter,
-    createContext,
-    onError: ({ error, path }) => {
-      console.error(`[tRPC error] ${path}:`, error.message);
-    },
-  })
-);
-
-// ── Webhooks ──────────────────────────────────────────────────
-// WhatsApp
-import whatsappWebhookRouter from "../webhooks/whatsappWebhook.js";
-app.use("/api/webhooks/whatsapp", whatsappWebhookRouter);
-
-// ── Frontend estático (produção) ──────────────────────────────
-if (!isDev) {
-  const distPath = path.resolve(__dirname, "../../dist/public");
-  app.use(express.static(distPath));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise(resolve => {
+    const server = net.createServer();
+    server.listen(port, () => {
+      server.close(() => resolve(true));
+    });
+    server.on("error", () => resolve(false));
   });
 }
 
-// ── Error handler global ──────────────────────────────────────
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("[server error]", err);
-  res.status(err.status ?? 500).json({
-    error: isDev ? err.message : "Erro interno do servidor",
+async function findAvailablePort(startPort: number = 3000): Promise<number> {
+  for (let port = startPort; port < startPort + 20; port++) {
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+  }
+  throw new Error(`No available port found starting from ${startPort}`);
+}
+
+async function startServer() {
+  const app = express();
+  const server = createServer(app);
+  // Configure body parser with larger size limit for file uploads
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // OAuth callback under /api/oauth/callback
+  registerOAuthRoutes(app);
+  // tRPC API
+  app.use(
+    "/api/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext,
+    })
+  );
+  // development mode uses Vite, production mode uses static files
+  if (process.env.NODE_ENV === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+
+  const preferredPort = parseInt(process.env.PORT || "3000");
+  const port = await findAvailablePort(preferredPort);
+
+  if (port !== preferredPort) {
+    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  }
+
+  server.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}/`);
   });
-});
+}
 
-// ── Start ─────────────────────────────────────────────────────
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Servidor rodando: http://localhost:${PORT}`);
-  console.log(`   Ambiente: ${process.env.NODE_ENV}`);
-  console.log(`   tRPC:    http://localhost:${PORT}/trpc`);
-  console.log(`   Health:  http://localhost:${PORT}/api/health`);
-});
-
-export default app;
+startServer().catch(console.error);

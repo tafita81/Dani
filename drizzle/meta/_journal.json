@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1775000404314,
+      "tag": "0000_left_vengeance",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1775004808388,
+      "tag": "0001_amusing_caretaker",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775007338810,
+      "tag": "0002_great_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1775007714456,
+      "tag": "0003_shocking_rumiko_fujikawa",
+      "breakpoints": true
+    }
+  ]
+}
