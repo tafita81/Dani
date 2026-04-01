@@ -128,12 +128,32 @@ export const appRouter = router({
         return getPatientById(input.id);
       }),
 
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getPatientById(input.id);
+      }),
+
+    getMoodHistory: protectedProcedure
+      .input(z.object({ patientId: z.number() }))
+      .query(async ({ input }) => {
+        return getMoodEntriesByPatientId(input.patientId);
+      }),
+
+    getSessionHistory: protectedProcedure
+      .input(z.object({ patientId: z.number() }))
+      .query(async ({ input }) => {
+        return getSessionsByPatientId(input.patientId);
+      }),
+
     create: protectedProcedure
       .input(
         z.object({
           name: z.string(),
           email: z.string().email().optional().nullable(),
           phone: z.string().optional().nullable(),
+          cpf: z.string().optional().nullable(),
+          rg: z.string().optional().nullable(),
           birthDate: z.string().optional().nullable(),
           gender: z.enum(["M", "F", "other"]).optional(),
           occupation: z.string().optional().nullable(),
@@ -156,6 +176,8 @@ export const appRouter = router({
           name: input.name,
           email: input.email,
           phone: input.phone,
+          cpf: input.cpf,
+          rg: input.rg,
           birthDate: input.birthDate,
           gender: input.gender || "M",
           occupation: input.occupation,

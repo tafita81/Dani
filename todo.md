@@ -72,9 +72,14 @@
 - [x] Criar tabela de histórico de valores com datas
 - [x] Criar tabela de transações financeiras
 - [x] Criar tabela de inadimplência e pendências
-- [ ] Implementar dashboard de detalhes do paciente com gráficos
-- [ ] Implementar exportação em PDF com relatórios clínicos
+- [x] Criar dashboard de detalhes do paciente com gráficos de evolução de humor
+- [x] Implementar timeline de sessões no dashboard
+- [x] Implementar análise de progresso do tratamento
+- [ ] Implementar exportação em PDF com relatórios clínicos profissionais
+- [ ] Adicionar assinatura digital em relatórios PDF
 - [ ] Implementar comparação entre sessões lado-a-lado
+- [ ] Integrar Outlook Calendar para sincronização de agendamentos
+- [ ] Implementar bloqueio/liberação de horários no Outlook
 
 ## Fase 7: Integrações (Futuro)
 - [ ] Integração com WhatsApp Business API

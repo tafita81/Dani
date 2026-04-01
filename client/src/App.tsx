@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import ClinicalAssistant from "./pages/ClinicalAssistant";
 import CarAssistant from "./pages/CarAssistant";
 import PatientRegistration from "./pages/PatientRegistration";
+import PatientDetails from "./pages/PatientDetails";
 
 function Router() {
   return (
@@ -15,6 +16,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/patients"} component={PatientRegistration} />
       <Route path={"/patients/register"} component={PatientRegistration} />
+      <Route path={"/patients/:patientId"} component={PatientDetails} />
       <Route path={"/appointments"} component={Home} />
       <Route path={"/crm"} component={Home} />
       <Route path={"/assistente-clinico"} component={ClinicalAssistant} />

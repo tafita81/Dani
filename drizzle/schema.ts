@@ -82,6 +82,8 @@ export const patients = mysqlTable("patients", {
   origin: mysqlEnum("origin", ["instagram", "whatsapp", "telegram", "site", "indication", "other"]).default("other"),
   status: mysqlEnum("status", ["active", "inactive", "waitlist"]).default("active"),
   notes: text("notes"),
+  observations: text("observations"),
+  detailedObservations: text("detailed_observations"),
   emergencyContact: json("emergency_contact").$type<{ name: string; phone: string; relation: string }>(),
   // Endereço Completo
   addressStreet: varchar("address_street", { length: 255 }),
