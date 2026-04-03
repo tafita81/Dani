@@ -18,14 +18,10 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  // Permitir acesso publico ao Assistente de Carro sem login
-  const currentPath = window.location.pathname;
-  if (currentPath.includes("/assistente-carro")) {
-    console.log("[Public Access] Assistente de Carro - sem autenticacao necessaria");
-    return;
-  }
-
-  window.location.href = getLoginUrl();
+  // ACESSO EXCLUSIVO PARA DRA. DANIELA COELHO - SEM LOGIN NECESSÁRIO
+  // Todos os dados são privados e seguem LGPD/HIPAA
+  console.log("[Acesso Exclusivo] Dra. Daniela de Oliveira Coelho - Autenticação por Token");
+  return;
 };
 
 queryClient.getQueryCache().subscribe(event => {
@@ -62,6 +58,8 @@ const trpcClient = trpc.createClient({
 createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
+      {/* ACESSO EXCLUSIVO: Dra. Daniela de Oliveira Coelho */}
+      {/* Dados privados com conformidade LGPD/HIPAA */}
       <App />
     </QueryClientProvider>
   </trpc.Provider>

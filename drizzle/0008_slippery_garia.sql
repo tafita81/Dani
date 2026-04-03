@@ -1,0 +1,1 @@
+DROP TABLE `blocked_time_slots`;

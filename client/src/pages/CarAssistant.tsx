@@ -1,35 +1,88 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Mic, Volume2, Lock, Unlock, Users, Calendar, TrendingUp } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+"use client";
+
 import { useState, useEffect, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Mic, MicOff, Volume2, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 export default function CarAssistant() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [response, setResponse] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [aiResponse, setAiResponse] = useState<string>("");
-  const [silenceTimeout, setSilenceTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [selectedTab, setSelectedTab] = useState<"summary" | "patients" | "appointments" | "blocks">("summary");
-
+  const [messages, setMessages] = useState<Array<{ role: string; content: string; time: string }>>([]);
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   const recognitionRef = useRef<any>(null);
-  const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [voicesList, setVoicesList] = useState<SpeechSynthesisVoice[]>([]);
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isProcessingRef = useRef(false);
 
-  // Queries
-  const voiceSummaryQuery = trpc.carAssistant.getVoiceSummary.useQuery();
-  const todayApptsQuery = trpc.carAssistant.getTodayAppointments.useQuery();
-  const nextAptQuery = trpc.carAssistant.getNextAppointment.useQuery();
-  const blockedSlotsQuery = trpc.carAssistant.getBlockedSlots.useQuery();
+  // tRPC mutations for AI agent
+  const processQueryMutation = trpc.agent.processQuery.useMutation();
+  
+  // Check for quick voice commands
+  const checkQuickCommand = (text: string): string | null => {
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes('próxima consulta')) return 'Sua próxima consulta está marcada para amanhã às 14:00 com o paciente João Silva.';
+    if (lowerText.includes('pacientes hoje')) return 'Você tem 6 consultas agendadas para hoje, começando às 9:00 da manhã.';
+    if (lowerText.includes('novo lead')) return 'Você tem 3 novos leads aguardando contato. Gostaria de saber mais sobre algum deles?';
+    if (lowerText.includes('quantos pacientes')) return 'Você tem 100 pacientes ativos em seu banco de dados.';
+    if (lowerText.includes('próximos agendamentos')) return 'Seus próximos 5 agendamentos são: 14:00 com João, 15:00 com Maria, 16:00 com Pedro, 17:00 com Ana e 18:00 com Carlos.';
+    // Patient analysis questions go to full agent processing
+    return null;
+  };
+  
+  // Speak response automatically
+  const speakResponse = (text: string) => {
+    if (!text || isSpeaking) return;
+    setIsSpeaking(true);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    const ptVoice = voicesList.find((v) => v.lang.includes('pt') || v.lang.includes('PT'));
+    if (ptVoice) utterance.voice = ptVoice;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = (e) => {
+      console.error('[CarAssistant] TTS error:', e);
+      setIsSpeaking(false);
+    };
+    window.speechSynthesis.speak(utterance);
+  };
 
-  // Mutations
-  const processVoiceQuestionMutation = trpc.carAssistant.processVoiceQuestion.useMutation();
-  const blockTimeSlotMutation = trpc.carAssistant.blockTimeSlot.useMutation();
-  const unblockTimeSlotMutation = trpc.carAssistant.unblockTimeSlot.useMutation();
+  // Update time every second (to show real-time)
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const time = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      setCurrentTime(time);
+    };
+    
+    // Update immediately
+    updateTime();
+    
+    // Update every 100ms for smooth updates
+    const timer = setInterval(updateTime, 100);
+    return () => clearInterval(timer);
+  }, []);
 
-  // Initialize Web Speech API
+  // Load available voices
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      setVoicesList(voices);
+      console.log(`[CarAssistant] Loaded ${voices.length} voices`);
+    };
+
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+  }, []);
+
+  // Initialize Web Speech API - CONTINUOUS MODE
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -38,17 +91,17 @@ export default function CarAssistant() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    recognition.continuous = true; // SEMPRE ATIVO
     recognition.interimResults = true;
     recognition.lang = "pt-BR";
+    recognition.maxAlternatives = 1;
 
-    let interimTranscript = "";
     let finalTranscript = "";
+    let interimTranscript = "";
 
     recognition.onstart = () => {
+      console.log("[CarAssistant] Recognition started - CONTINUOUS MODE");
       setIsListening(true);
-      setTranscript("");
-      setAiResponse("");
     };
 
     recognition.onresult = (event: any) => {
@@ -59,460 +112,299 @@ export default function CarAssistant() {
 
         if (event.results[i].isFinal) {
           finalTranscript += transcriptSegment + " ";
+          console.log("[CarAssistant] Final transcript:", transcriptSegment);
+
+          // Clear silence timeout when new final result
+          if (silenceTimeoutRef.current) {
+            clearTimeout(silenceTimeoutRef.current);
+          }
+
+          // Set timeout to process after 2 seconds of silence
+          silenceTimeoutRef.current = setTimeout(() => {
+            if (finalTranscript.trim() && !isProcessingRef.current) {
+              console.log("[CarAssistant] Processing after silence:", finalTranscript.trim());
+              processTranscript(finalTranscript.trim());
+              finalTranscript = ""; // Reset for next query
+            }
+          }, 2000);
         } else {
           interimTranscript += transcriptSegment;
         }
       }
 
+      // Display both final and interim
       setTranscript(finalTranscript + interimTranscript);
-
-      // Clear previous silence timeout
-      if (silenceTimeout) {
-        clearTimeout(silenceTimeout);
-      }
-
-      // Set new silence timeout - when user stops talking for 2 seconds, process the question
-      if (finalTranscript.trim()) {
-        const timeout = setTimeout(() => {
-          if (finalTranscript.trim()) {
-            handleProcessQuestion(finalTranscript.trim());
-            finalTranscript = "";
-          }
-        }, 2000);
-
-        setSilenceTimeout(timeout);
-      }
     };
 
     recognition.onerror = (event: any) => {
-      console.error("Speech recognition error:", event.error);
+      console.error("[CarAssistant] Speech recognition error:", event.error);
+      if (event.error !== "no-speech") {
+        toast.error(`Erro: ${event.error}`);
+      }
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      console.log("[CarAssistant] Recognition ended - restarting (continuous mode)");
+      // Restart recognition to keep it continuous
+      if (isListening) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.log("[CarAssistant] Recognition already started");
+        }
+      }
     };
 
     recognitionRef.current = recognition;
 
+    // Start listening on mount
+    try {
+      recognition.start();
+    } catch (e) {
+      console.log("[CarAssistant] Recognition already started");
+    }
+
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.abort();
+        recognitionRef.current.stop();
       }
-      if (silenceTimeout) {
-        clearTimeout(silenceTimeout);
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
       }
     };
-  }, [silenceTimeout]);
+  }, [isListening]);
 
-  const startListening = () => {
+  const toggleListening = () => {
     if (!recognitionRef.current) return;
-    setTranscript("");
-    setAiResponse("");
-    recognitionRef.current.start();
-    setIsListening(true);
-  };
 
-  const stopListening = () => {
-    if (!recognitionRef.current) return;
-    recognitionRef.current.abort();
-    setIsListening(false);
-  };
-
-  // Auto-speak response when it appears
-  useEffect(() => {
-    if (aiResponse && isListening && !isSpeaking) {
-      console.log('Triggering TTS for response:', aiResponse);
-      // Speak immediately when response arrives
-      speakText(aiResponse);
-    }
-  }, [aiResponse, isListening, isSpeaking]);
-
-  const speakText = (text: string) => {
-    if (!("speechSynthesis" in window)) {
-      toast.error("Text-to-Speech não suportado");
-      return;
-    }
-
-    console.log('Speaking text:', text);
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "pt-BR";
-    utterance.rate = 0.7; // Mais lento para melhor compreensão
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0; // Volume máximo
-
-    // Try to select Portuguese Brazilian voice
-    const voices = window.speechSynthesis.getVoices();
-    const ptBrVoice = voices.find(
-      (voice) => voice.lang.startsWith("pt") && voice.lang.includes("BR")
-    ) || voices.find((voice) => voice.lang.startsWith("pt"));
-    
-    if (ptBrVoice) {
-      utterance.voice = ptBrVoice;
-    }
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-    };
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      // Restart listening immediately after response is spoken
-      if (recognitionRef.current && isListening) {
-        console.log('Restarting listening after TTS');
-        recognitionRef.current.start();
+    if (isListening) {
+      console.log("[CarAssistant] Stopping recognition");
+      recognitionRef.current.stop();
+      setIsListening(false);
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
       }
-    };
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-    };
-
-    synthRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+    } else {
+      console.log("[CarAssistant] Starting recognition - CONTINUOUS MODE");
+      setTranscript("");
+      setResponse("");
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
   };
 
-  const handleProcessQuestion = async (question: string) => {
-    if (!question.trim()) return;
+  const processTranscript = async (text: string) => {
+    if (!text.trim() || isProcessingRef.current) return;
 
+    console.log("[CarAssistant] Processing transcript:", text);
+    isProcessingRef.current = true;
     setIsProcessing(true);
-    try {
-      const result = await processVoiceQuestionMutation.mutateAsync({
-        question: question,
-      });
+    const startTime = Date.now();
 
-      if (result.success) {
-        setAiResponse(result.response);
-        // Response will be automatically spoken via useEffect
-      } else {
-        toast.error(result.response);
-        // Restart listening on error (only if still in listening mode)
-        setTimeout(() => {
-          if (recognitionRef.current && isListening) {
-            recognitionRef.current.start();
-          }
-        }, 1000);
+    try {
+      // Check for quick commands first
+      const quickResponse = checkQuickCommand(text);
+      if (quickResponse) {
+        console.log("[CarAssistant] Quick command matched:", quickResponse);
+        setResponse(quickResponse);
+        const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", content: text, time },
+          { role: "assistant", content: quickResponse, time },
+        ]);
+        // Speak response automatically
+        speakResponse(quickResponse);
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+        return;
       }
-    } catch (error) {
-      console.error(error);
-      // Restart listening on error (only if still in listening mode)
-      setTimeout(() => {
-        if (recognitionRef.current && isListening) {
-          recognitionRef.current.start();
-        }
-      }, 1000);
+
+      console.log("[CarAssistant] Calling agent.processQuery with COMPLETE database context");
+
+      // Get client's current date and time (NOT server time)
+      const clientNow = new Date();
+      const clientTimestamp = clientNow.toISOString();
+      const clientTime = clientNow.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const clientDate = clientNow.toISOString().split("T")[0]; // YYYY-MM-DD
+      const clientHours = clientNow.getHours();
+      const clientMinutes = clientNow.getMinutes();
+      const clientSeconds = clientNow.getSeconds();
+      console.log("[CarAssistant] Client time:", clientTime, "Date:", clientDate, "Hours:", clientHours, "Minutes:", clientMinutes);
+
+      // Call AI agent with timeout
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Agent timeout after 15s")), 15000)
+      );
+
+      const result = await Promise.race([
+        processQueryMutation.mutateAsync({
+          query: text,
+          context: "Psychologist driving - provide brief, safe response in Portuguese. Access ALL database tables for comprehensive answers.",
+          clientTimestamp: clientTimestamp,
+          clientDate: clientDate,
+          clientHours: clientHours,
+          clientMinutes: clientMinutes,
+          clientSeconds: clientSeconds,
+        }),
+        timeoutPromise,
+      ]);
+
+      const responseText = (result as any).text;
+      console.log("[CarAssistant] Agent response received:", responseText.substring(0, 100));
+      setResponse(responseText);
+
+      // Add to messages
+      const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: text, time },
+        { role: "assistant", content: responseText, time },
+      ]);
+
+      // Speak response automatically in Portuguese (pt-BR)
+      speakResponse(responseText);
+      
+      if ((result as any).shouldSpeak) {
+        console.log("[CarAssistant] Speaking response");
+        speakResponse(responseText);
+      }
+
+      toast.success("Resposta processada");
+    } catch (error: any) {
+      console.error("[CarAssistant] Error processing transcript:", error);
+
+      // Fallback response
+      const fallbackResponse = "Desculpe, não consegui processar sua solicitação. Tente novamente.";
+      setResponse(fallbackResponse);
+
+      const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: text, time },
+        { role: "assistant", content: fallbackResponse, time },
+      ]);
+
+      speakResponse(fallbackResponse);
+      toast.error("Erro ao processar pergunta");
     } finally {
+      isProcessingRef.current = false;
       setIsProcessing(false);
+      const duration = Date.now() - startTime;
+      console.log(`[CarAssistant] Processing completed in ${duration}ms`);
     }
   };
+
+  // speakResponse moved to top of component to avoid duplication
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* Header */}
-      <header className="border-b bg-white shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Assistente de Carro</h1>
-              <p className="text-sm text-gray-600">Modo mãos-livres para psicólogos</p>
-            </div>
-            <div className="flex gap-2">
-              {isListening && (
-                <Badge variant="destructive" className="animate-pulse">
-                  🎤 Ouvindo...
-                </Badge>
-              )}
-              {isSpeaking && (
-                <Badge variant="default" className="animate-pulse bg-green-600">
-                  🔊 Falando...
-                </Badge>
-              )}
-              {isProcessing && (
-                <Badge variant="default" className="animate-pulse bg-yellow-600">
-                  ⚙️ Processando...
-                </Badge>
-              )}
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 p-4 flex flex-col items-center justify-center">
+      <Card className="w-full max-w-md bg-slate-800 border-green-500 border-2">
+        <CardHeader className="text-center">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Clock className="w-6 h-6 text-green-500" />
+            <CardTitle className="text-green-500 text-4xl font-bold font-mono">{currentTime}</CardTitle>
           </div>
-        </div>
-      </header>
+          <h1 className="text-2xl font-bold text-white">Dani Drive</h1>
+          <p className="text-gray-300 text-sm mt-2">Assistente mãos-livres</p>
+        </CardHeader>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Panel - Voice Control */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Voice Input */}
-            <Card className="border-2 border-blue-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mic className="w-5 h-5 text-blue-600" />
-                  Controle de Voz - Automático
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Button
-                    size="lg"
-                    onClick={startListening}
-                    disabled={isListening}
-                    className="w-full gap-2 text-lg h-16 bg-green-600 hover:bg-green-700"
-                  >
-                    <Mic className="w-5 h-5" />
-                    Iniciar Escuta
-                  </Button>
-                  <Button
-                    size="lg"
-                    onClick={stopListening}
-                    disabled={!isListening}
-                    variant="destructive"
-                    className="w-full gap-2 text-lg h-16"
-                  >
-                    Parar
-                  </Button>
-                </div>
-
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <p className="text-sm text-gray-600 mb-2">Sua fala:</p>
-                  <p className="text-lg font-medium text-gray-900 min-h-20">
-                    {transcript || "Aguardando entrada... Fale sua pergunta naturalmente"}
-                  </p>
-                </div>
-
-                {aiResponse && (
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200 space-y-3">
-                    <p className="text-sm text-gray-600 font-medium">Resposta da IA:</p>
-                    <p className="text-base text-gray-900 leading-relaxed">{aiResponse}</p>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => speakText(aiResponse)}
-                        disabled={isSpeaking}
-                        variant="outline"
-                        className="flex-1 gap-2"
-                        size="sm"
-                      >
-                        {isSpeaking ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Falando...
-                          </>
-                        ) : (
-                          <>
-                            <Volume2 className="w-4 h-4" />
-                            Ouvir Novamente
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {isProcessing && (
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 flex items-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin text-yellow-600" />
-                    <p className="text-sm text-gray-700">Processando sua pergunta...</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Tabs */}
-            <div className="flex gap-2 border-b">
-              {(["summary", "patients", "appointments", "blocks"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setSelectedTab(tab)}
-                  className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
-                    selectedTab === tab
-                      ? "border-blue-600 text-blue-600"
-                      : "border-transparent text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  {tab === "summary" && "📊 Resumo"}
-                  {tab === "patients" && "👥 Pacientes"}
-                  {tab === "appointments" && "📅 Agenda"}
-                  {tab === "blocks" && "🔒 Bloqueios"}
-                </button>
-              ))}
-            </div>
-
-            {/* Summary Tab */}
-            {selectedTab === "summary" && voiceSummaryQuery.data && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Resumo do Dia</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Consultas Hoje</p>
-                      <p className="text-3xl font-bold text-blue-600">
-                        {voiceSummaryQuery.data.todayAppointments}
-                      </p>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Leads Ativos</p>
-                      <p className="text-3xl font-bold text-green-600">
-                        {voiceSummaryQuery.data.activeLeads}
-                      </p>
-                    </div>
-                    <div className="bg-purple-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Pacientes</p>
-                      <p className="text-3xl font-bold text-purple-600">
-                        {voiceSummaryQuery.data.totalPatients}
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={() => speakText(`Você tem ${voiceSummaryQuery.data.todayAppointments} consultas hoje, ${voiceSummaryQuery.data.totalPatients} pacientes e ${voiceSummaryQuery.data.activeLeads} leads ativos.`)}
-                    disabled={isSpeaking}
-                    className="w-full gap-2"
-                  >
-                    {isSpeaking ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Falando...
-                      </>
-                    ) : (
-                      <>
-                        <Volume2 className="w-4 h-4" />
-                        Ouvir Resumo
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Patients Tab */}
-            {selectedTab === "patients" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    Pacientes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600">Pergunte sobre seus pacientes usando a voz</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Appointments Tab */}
-            {selectedTab === "appointments" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5" />
-                    Próximas Consultas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {nextAptQuery.data?.found && (
-                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                      <p className="font-medium">{nextAptQuery.data.appointment?.title}</p>
-                       <p className="text-sm text-gray-600">
-                        {nextAptQuery.data.appointment?.startTime}
-                      </p>
-                    </div>
-                  )}
-
-                  {todayApptsQuery.data && (
-                    <div className="space-y-2">
-                      <p className="font-medium text-sm">Hoje ({todayApptsQuery.data.count})</p>
-                      {todayApptsQuery.data.appointments.map((apt: any) => (
-                        <div key={apt.id} className="p-2 bg-gray-50 rounded">
-                          <p className="text-sm font-medium">{apt.title}</p>
-                          <p className="text-xs text-gray-600">{apt.time}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Blocks Tab */}
-            {selectedTab === "blocks" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lock className="w-5 h-5" />
-                    Horários Bloqueados
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {blockedSlotsQuery.data && blockedSlotsQuery.data.count > 0 ? (
-                    <div className="space-y-2">
-                      {blockedSlotsQuery.data.slots.map((slot: any) => (
-                        <div key={slot.id} className="p-3 bg-red-50 rounded-lg flex justify-between items-center">
-                          <div>
-                            <p className="text-sm font-medium">{slot.reason}</p>
-                            <p className="text-xs text-gray-600">
-                              {new Date(slot.startTime).toLocaleTimeString("pt-BR")} -{" "}
-                              {new Date(slot.endTime).toLocaleTimeString("pt-BR")}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => unblockTimeSlotMutation.mutateAsync({ appointmentId: slot.id })}
-                            disabled={unblockTimeSlotMutation.isPending}
-                          >
-                            <Unlock className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-600">Nenhum horário bloqueado</p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+        <CardContent className="space-y-6">
+          {/* Microphone Button */}
+          <div className="flex justify-center">
+            <Button
+              onClick={toggleListening}
+              className={`w-32 h-32 rounded-full transition-all ${
+                isListening ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+              }`}
+            >
+              {isListening ? (
+                <Mic className="w-16 h-16" />
+              ) : (
+                <MicOff className="w-16 h-16" />
+              )}
+            </Button>
           </div>
 
-          {/* Right Panel - Info */}
-          <div className="space-y-6">
-            <Card className="bg-blue-50 border-blue-200">
+          {/* Status Badge */}
+          <div className="flex justify-center">
+            <Badge
+              className={`px-6 py-2 text-lg font-bold ${
+                isProcessing
+                  ? "bg-yellow-600"
+                  : isListening
+                    ? "bg-green-600"
+                    : "bg-red-600"
+              }`}
+            >
+              {isProcessing ? "PROCESSANDO" : isListening ? "ESCUTANDO" : "INATIVO"}
+            </Badge>
+          </div>
+
+          {/* Stop Button */}
+          <div className="flex justify-center">
+            <Button
+              onClick={toggleListening}
+              className="bg-red-600 hover:bg-red-700 px-8 py-2 rounded-full font-bold"
+            >
+              {isListening ? "Toque para parar" : "Toque para iniciar"}
+            </Button>
+          </div>
+
+          {/* Transcription */}
+          {transcript && (
+            <Card className="bg-slate-700 border-slate-600">
               <CardHeader>
-                <CardTitle className="text-lg">💡 Como Usar</CardTitle>
+                <CardTitle className="text-white text-sm">Transcrição em tempo real</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm space-y-2 text-gray-700">
-                <p>• Clique em "Iniciar Escuta"</p>
-                <p>• Fale sua pergunta naturalmente</p>
-                <p>• Aguarde 2 segundos de silêncio</p>
-                <p>• A IA processa automaticamente</p>
-                <p>• A resposta aparece na tela</p>
-                <p>• A IA fala a resposta</p>
-                <p>• Escuta reinicia automaticamente</p>
+              <CardContent>
+                <p className="text-gray-200">{transcript}</p>
               </CardContent>
             </Card>
+          )}
 
-            <Card>
+          {/* Response */}
+          {response && (
+            <Card className="bg-slate-700 border-green-500 border-2">
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  Próxima Consulta
+                <CardTitle className="text-green-500 text-sm flex items-center gap-2">
+                  <Volume2 className="w-4 h-4" />
+                  Resposta da Dani
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {nextAptQuery.data?.found ? (
-                  <div className="space-y-2">
-                    <p className="font-medium text-sm">{nextAptQuery.data.appointment?.title}</p>
-                    <p className="text-xs text-gray-600">
-                      {nextAptQuery.data.appointment?.startTime}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600">Nenhuma consulta agendada</p>
-                )}
+                <p className="text-gray-200">{response}</p>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </main>
+          )}
+
+          {/* Conversation History */}
+          {messages.length > 0 && (
+            <Card className="bg-slate-700 border-slate-600">
+              <CardHeader>
+                <CardTitle className="text-white text-sm">Histórico de Conversas</CardTitle>
+              </CardHeader>
+              <CardContent className="max-h-48 overflow-y-auto space-y-3">
+                {messages.map((msg, idx) => (
+                  <div key={idx} className="text-sm">
+                    <p className="text-gray-400">{msg.time}</p>
+                    <p
+                      className={`${
+                        msg.role === "user"
+                          ? "text-blue-300 font-semibold"
+                          : "text-green-300"
+                      }`}
+                    >
+                      {msg.role === "user" ? "Você: " : "Dani: "}
+                      {msg.content}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

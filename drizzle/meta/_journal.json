@@ -29,6 +29,55 @@
       "when": 1775007714456,
       "tag": "0003_shocking_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1775012546688,
+      "tag": "0004_optimal_sandman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1775013048467,
+      "tag": "0005_absurd_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1775013385612,
+      "tag": "0006_thin_darkstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1775164839931,
+      "tag": "0007_tiresome_bruce_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1775166138459,
+      "tag": "0008_slippery_garia",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1775168214344,
+      "tag": "0009_skinny_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1775175193152,
+      "tag": "0010_chubby_lorna_dane",
+      "breakpoints": true
     }
   ]
 }

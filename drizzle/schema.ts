@@ -82,56 +82,7 @@ export const patients = mysqlTable("patients", {
   origin: mysqlEnum("origin", ["instagram", "whatsapp", "telegram", "site", "indication", "other"]).default("other"),
   status: mysqlEnum("status", ["active", "inactive", "waitlist"]).default("active"),
   notes: text("notes"),
-  observations: text("observations"),
-  detailedObservations: text("detailed_observations"),
   emergencyContact: json("emergency_contact").$type<{ name: string; phone: string; relation: string }>(),
-  // Endereço Completo
-  addressStreet: varchar("address_street", { length: 255 }),
-  addressNumber: varchar("address_number", { length: 20 }),
-  addressComplement: varchar("address_complement", { length: 255 }),
-  addressCity: varchar("address_city", { length: 100 }),
-  addressState: varchar("address_state", { length: 2 }),
-  addressZip: varchar("address_zip", { length: 10 }),
-  // Dados Pessoais
-  cpf: varchar("cpf", { length: 14 }),
-  rg: varchar("rg", { length: 20 }),
-  maritalStatus: mysqlEnum("marital_status", ["single", "married", "divorced", "widowed", "other"]),
-  children: int("children").default(0),
-  educationLevel: mysqlEnum("education_level", ["elementary", "high_school", "college", "postgraduate", "other"]),
-  income: mysqlEnum("income", ["< 1000", "1000-2000", "2000-5000", "5000-10000", "> 10000"]),
-  // Tipo de Atendimento
-  attendanceType: mysqlEnum("attendance_type", ["presencial", "online", "hibrido"]).default("presencial"),
-  paymentType: mysqlEnum("payment_type", ["particular", "plano_saude", "convenio", "gratuito"]).default("particular"),
-  healthPlan: varchar("health_plan", { length: 100 }),
-  healthPlanNumber: varchar("health_plan_number", { length: 50 }),
-  // Origem de Consulta - Detalhada
-  consultationOriginType: mysqlEnum("consultation_origin_type", ["particular", "plano_saude", "convenio", "app_online", "indicacao", "outro"]).default("particular"),
-  healthPlanName: varchar("health_plan_name", { length: 150 }),
-  healthPlanId: varchar("health_plan_id", { length: 50 }),
-  onlineAppName: varchar("online_app_name", { length: 150 }),
-  onlineAppUrl: varchar("online_app_url", { length: 255 }),
-  referralSource: varchar("referral_source", { length: 150 }),
-  referralSourceDetails: text("referral_source_details"),
-  consultationApp: mysqlEnum("consultation_app", ["telemedicina", "zoom", "whatsapp", "google_meet", "skype", "presencial", "outro"]),
-  consultationAppName: varchar("consultation_app_name", { length: 100 }),
-  // Dados de Pagamento
-  currentConsultationPrice: float("current_consultation_price"),
-  paymentStatus: mysqlEnum("payment_status", ["pago", "pendente", "inadimplente", "cancelado"]).default("pendente"),
-  paymentMethod: mysqlEnum("payment_method", ["dinheiro", "cartao_credito", "cartao_debito", "pix", "transferencia", "outro"]),
-  lastPaymentDate: timestamp("last_payment_date"),
-  lastPaymentAmount: float("last_payment_amount"),
-  totalReceived: float("total_received").default(0),
-  totalPending: float("total_pending").default(0),
-  // Histórico Médico
-  medicalHistory: text("medical_history"),
-  medications: json("medications").$type<Array<{ name: string; dosage: string; frequency: string }>>(),
-  allergies: json("allergies").$type<Array<{ allergen: string; reaction: string }>>(),
-  previousTherapies: json("previous_therapies").$type<Array<{ therapist: string; period: string; reason: string }>>(),
-  psychiatricHistory: text("psychiatric_history"),
-  familyHistory: text("family_history"),
-  socialHistory: text("social_history"),
-  substanceUse: json("substance_use").$type<Array<{ substance: string; frequency: string; status: string }>>(),
-  suicideRisk: mysqlEnum("suicide_risk", ["low", "moderate", "high", "unknown"]).default("unknown"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
@@ -219,11 +170,14 @@ export const appointments = mysqlTable("appointments", {
   endTime: timestamp("end_time").notNull(),
   status: mysqlEnum("status", ["scheduled", "confirmed", "done", "cancelled", "no_show"]).default("scheduled"),
   type: mysqlEnum("type", ["online", "presential"]).default("presential"),
+  appointmentType: mysqlEnum("appointment_type", ["first", "return", "routine", "evaluation", "follow_up", "emergency"]).default("routine"),
+  modality: mysqlEnum("modality", ["online", "presential", "hybrid"]).default("presential"),
   googleEventId: varchar("google_event_id", { length: 255 }),
   outlookEventId: varchar("outlook_event_id", { length: 255 }),
   meetLink: varchar("meet_link", { length: 500 }),
   reminderSent: boolean("reminder_sent").default(false),
   notes: text("notes"),
+  observations: text("observations"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
@@ -248,11 +202,6 @@ export const sessionNotes = mysqlTable("session_notes", {
   homework: text("homework"),
   nextSession: text("next_session"),
   aiSuggestions: json("ai_suggestions").$type<string[]>(),
-  fullAnalysis: text("full_analysis"),
-  emotionalAnalysis: json("emotional_analysis").$type<Record<string, any>>(),
-  sessionType: varchar("session_type", { length: 50 }),
-  duration: int("duration"),
-  sessionDate: timestamp("session_date"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
@@ -368,61 +317,92 @@ export const googleCalendarIntegration = mysqlTable("google_calendar_integration
 }));
 
 // ═══════════════════════════════════════════════════════════
-//  GESTÃO FINANCEIRA
+//  PROTOCOLO DE PSICOTERAPIA (CFP 13/2022)
 // ═══════════════════════════════════════════════════════════
 
-export const priceHistory = mysqlTable("price_history", {
+export const protocolVersions = mysqlTable("protocol_versions", {
   id: int("id").autoincrement().primaryKey(),
-  patientId: int("patient_id").notNull().references(() => patients.id),
-  userId: int("user_id").notNull().references(() => users.id),
-  oldPrice: float("old_price"),
-  newPrice: float("new_price").notNull(),
-  reason: text("reason"),
-  changedAt: timestamp("changed_at").defaultNow().notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, (t) => ({
-  patientIdx: index("ph_patient_idx").on(t.patientId),
-  userIdx: index("ph_user_idx").on(t.userId),
-}));
-
-export const financialTransactions = mysqlTable("financial_transactions", {
-  id: int("id").autoincrement().primaryKey(),
-  patientId: int("patient_id").notNull().references(() => patients.id),
-  userId: int("user_id").notNull().references(() => users.id),
-  sessionId: int("session_id").references(() => sessionNotes.id),
-  appointmentId: int("appointment_id").references(() => appointments.id),
-  type: mysqlEnum("type", ["consulta", "reembolso", "ajuste", "desconto", "taxa"]).notNull(),
-  amount: float("amount").notNull(),
-  status: mysqlEnum("status", ["pago", "pendente", "cancelado", "reembolsado"]).default("pendente"),
-  paymentMethod: mysqlEnum("payment_method", ["dinheiro", "cartao_credito", "cartao_debito", "pix", "transferencia", "outro"]),
-  paymentDate: timestamp("payment_date"),
-  dueDate: timestamp("due_date"),
-  notes: text("notes"),
-  receiptUrl: varchar("receipt_url", { length: 500 }),
+  cfpResolutionNumber: varchar("cfp_resolution_number", { length: 20 }).notNull(),
+  cfpResolutionYear: int("cfp_resolution_year").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  effectiveDate: timestamp("effective_date").notNull(),
+  status: mysqlEnum("status", ["active", "archived", "deprecated"]).default("active"),
+  content: json("content").$type<Record<string, any>>(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
-  patientIdx: index("ft_patient_idx").on(t.patientId),
-  userIdx: index("ft_user_idx").on(t.userId),
-  statusIdx: index("ft_status_idx").on(t.status),
-  typeIdx: index("ft_type_idx").on(t.type),
+  resolutionIdx: index("pv_resolution_idx").on(t.cfpResolutionNumber),
+  statusIdx: index("pv_status_idx").on(t.status),
 }));
 
-export const delinquency = mysqlTable("delinquency", {
+export const psychotherapyProtocols = mysqlTable("psychotherapy_protocols", {
   id: int("id").autoincrement().primaryKey(),
   patientId: int("patient_id").notNull().references(() => patients.id),
   userId: int("user_id").notNull().references(() => users.id),
-  totalDelinquent: float("total_delinquent").notNull(),
-  daysOverdue: int("days_overdue").default(0),
-  status: mysqlEnum("status", ["ativo", "pago", "parcial", "cancelado"]).default("ativo"),
-  lastNotificationDate: timestamp("last_notification_date"),
-  notes: text("notes"),
+  protocolVersionId: int("protocol_version_id").notNull().references(() => protocolVersions.id),
+  status: mysqlEnum("status", ["draft", "active", "completed", "archived"]).default("draft"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
-  patientIdx: index("del_patient_idx").on(t.patientId),
-  userIdx: index("del_user_idx").on(t.userId),
-  statusIdx: index("del_status_idx").on(t.status),
+  patientIdx: index("pp_patient_idx").on(t.patientId),
+  userIdx: index("pp_user_idx").on(t.userId),
+  statusIdx: index("pp_status_idx").on(t.status),
+}));
+
+export const protocolSections = mysqlTable("protocol_sections", {
+  id: int("id").autoincrement().primaryKey(),
+  protocolId: int("protocol_id").notNull().references(() => psychotherapyProtocols.id),
+  sectionName: varchar("section_name", { length: 100 }).notNull(),
+  sectionOrder: int("section_order").notNull(),
+  content: json("content").$type<Record<string, any>>(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  protocolIdx: index("ps_protocol_idx").on(t.protocolId),
+}));
+
+export const protocolQuestions = mysqlTable("protocol_questions", {
+  id: int("id").autoincrement().primaryKey(),
+  sectionId: int("section_id").notNull().references(() => protocolSections.id),
+  questionText: text("question_text").notNull(),
+  questionType: mysqlEnum("question_type", ["text", "textarea", "number", "date", "select", "checkbox", "radio"]).default("text"),
+  required: boolean("required").default(true),
+  order: int("order").notNull(),
+  options: json("options").$type<string[]>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  sectionIdx: index("pq_section_idx").on(t.sectionId),
+}));
+
+export const protocolAnswers = mysqlTable("protocol_answers", {
+  id: int("id").autoincrement().primaryKey(),
+  protocolId: int("protocol_id").notNull().references(() => psychotherapyProtocols.id),
+  questionId: int("question_id").notNull().references(() => protocolQuestions.id),
+  answer: text("answer"),
+  extractedFromTranscription: boolean("extracted_from_transcription").default(false),
+  transcriptionSource: text("transcription_source"),
+  confirmedByPsychologist: boolean("confirmed_by_psychologist").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  protocolIdx: index("pa_protocol_idx").on(t.protocolId),
+  questionIdx: index("pa_question_idx").on(t.questionId),
+}));
+
+export const protocolExports = mysqlTable("protocol_exports", {
+  id: int("id").autoincrement().primaryKey(),
+  protocolId: int("protocol_id").notNull().references(() => psychotherapyProtocols.id),
+  exportFormat: mysqlEnum("export_format", ["pdf", "docx", "html"]).default("pdf"),
+  exportedAt: timestamp("exported_at").defaultNow(),
+  fileUrl: text("file_url"),
+  fileName: varchar("file_name", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  protocolIdx: index("pe_protocol_idx").on(t.protocolId),
 }));
 
 export type User = typeof users.$inferSelect;
@@ -435,9 +415,15 @@ export type SessionNote = typeof sessionNotes.$inferSelect;
 export type InsertSessionNote = typeof sessionNotes.$inferInsert;
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
-export type PriceHistory = typeof priceHistory.$inferSelect;
-export type InsertPriceHistory = typeof priceHistory.$inferInsert;
-export type FinancialTransaction = typeof financialTransactions.$inferSelect;
-export type InsertFinancialTransaction = typeof financialTransactions.$inferInsert;
-export type Delinquency = typeof delinquency.$inferSelect;
-export type InsertDelinquency = typeof delinquency.$inferInsert;
+export type ProtocolVersion = typeof protocolVersions.$inferSelect;
+export type InsertProtocolVersion = typeof protocolVersions.$inferInsert;
+export type PsychotherapyProtocol = typeof psychotherapyProtocols.$inferSelect;
+export type InsertPsychotherapyProtocol = typeof psychotherapyProtocols.$inferInsert;
+export type ProtocolSection = typeof protocolSections.$inferSelect;
+export type InsertProtocolSection = typeof protocolSections.$inferInsert;
+export type ProtocolQuestion = typeof protocolQuestions.$inferSelect;
+export type InsertProtocolQuestion = typeof protocolQuestions.$inferInsert;
+export type ProtocolAnswer = typeof protocolAnswers.$inferSelect;
+export type InsertProtocolAnswer = typeof protocolAnswers.$inferInsert;
+export type ProtocolExport = typeof protocolExports.$inferSelect;
+export type InsertProtocolExport = typeof protocolExports.$inferInsert;

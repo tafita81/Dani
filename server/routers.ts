@@ -4,6 +4,9 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { clinicalAssistantRouter } from "./routers/clinicalAssistant";
 import { carAssistantRouter } from "./routers/carAssistant";
+import { agentRouter } from "./routers/agent";
+import { seedRouter } from "./routers/seed";
+import { intelligentAnalysisRouter } from "./routers/intelligentAnalysis";
 import {
   getPatientsByUserId,
   getPatientById,
@@ -45,6 +48,9 @@ export const appRouter = router({
 
   clinicalAssistant: clinicalAssistantRouter,
   carAssistant: carAssistantRouter,
+  agent: agentRouter,
+  intelligentAnalysis: intelligentAnalysisRouter,
+  seed: seedRouter,
 
   // ═══════════════════════════════════════════════════════════
   //  AUTENTICAÇÃO
@@ -128,43 +134,17 @@ export const appRouter = router({
         return getPatientById(input.id);
       }),
 
-    getById: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return getPatientById(input.id);
-      }),
-
-    getMoodHistory: protectedProcedure
-      .input(z.object({ patientId: z.number() }))
-      .query(async ({ input }) => {
-        return getMoodEntriesByPatientId(input.patientId);
-      }),
-
-    getSessionHistory: protectedProcedure
-      .input(z.object({ patientId: z.number() }))
-      .query(async ({ input }) => {
-        return getSessionsByPatientId(input.patientId);
-      }),
-
     create: protectedProcedure
       .input(
         z.object({
           name: z.string(),
-          email: z.string().email().optional().nullable(),
-          phone: z.string().optional().nullable(),
-          cpf: z.string().optional().nullable(),
-          rg: z.string().optional().nullable(),
-          birthDate: z.string().optional().nullable(),
+          email: z.string().email().optional(),
+          phone: z.string().optional(),
+          birthDate: z.string().optional(),
           gender: z.enum(["M", "F", "other"]).optional(),
-          occupation: z.string().optional().nullable(),
+          occupation: z.string().optional(),
           origin: z.enum(["instagram", "whatsapp", "telegram", "site", "indication", "other"]).optional(),
-          status: z.enum(["active", "inactive", "waitlist"]).optional(),
-          notes: z.string().optional().nullable(),
-          emergencyContact: z.object({
-            name: z.string(),
-            phone: z.string(),
-            relation: z.string(),
-          }).optional(),
+          notes: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -173,22 +153,10 @@ export const appRouter = router({
 
         const result = await db.insert(patients).values({
           userId: ctx.user.id,
-          name: input.name,
-          email: input.email,
-          phone: input.phone,
-          cpf: input.cpf,
-          rg: input.rg,
-          birthDate: input.birthDate,
-          gender: input.gender || "M",
-          occupation: input.occupation,
-          origin: input.origin || "other",
-          status: input.status || "active",
-          notes: input.notes,
-          emergencyContact: input.emergencyContact,
+          ...input,
         });
 
-        const createdPatient = await getPatientById((result as any).insertId);
-        return createdPatient;
+        return result;
       }),
 
     update: protectedProcedure
@@ -266,6 +234,45 @@ export const appRouter = router({
 
         return result;
       }),
+    createPending: publicProcedure
+      .input(
+        z.object({
+          patientName: z.string(),
+          patientEmail: z.string().email(),
+          patientPhone: z.string(),
+          appointmentType: z.enum(["first", "return", "routine", "evaluation", "follow_up", "emergency"]),
+          modality: z.enum(["online", "presential", "hybrid"]),
+          preferredDate: z.date(),
+          preferredTime: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const startTime = new Date(input.preferredDate);
+        const [hours, minutes] = input.preferredTime.split(":");
+        startTime.setHours(parseInt(hours), parseInt(minutes), 0);
+
+        const endTime = new Date(startTime);
+        endTime.setHours(endTime.getHours() + 1);
+
+        const result = await db.insert(appointments).values({
+          userId: 1,
+          title: `Agendamento: ${input.patientName}`,
+          startTime,
+          endTime,
+          type: input.modality === "online" ? "online" : "presential",
+          appointmentType: input.appointmentType,
+          modality: input.modality,
+          status: "scheduled",
+          notes: `Nome: ${input.patientName}\nEmail: ${input.patientEmail}\nTelefone: ${input.patientPhone}`,
+          observations: `Agendamento publico - Aguardando confirmacao`,
+        });
+
+        return { success: true, appointmentId: 0 };
+      }),
+
 
     update: protectedProcedure
       .input(

@@ -1,394 +1,413 @@
 import { router, publicProcedure } from "../_core/trpc";
 import { z } from "zod";
-import { getDb } from "../db";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
-import {
-  users,
-  patients,
-  appointments,
-  sessionNotes,
-  leads,
-  treatmentPlans,
-  leadInteractions,
-} from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
+import { getDb } from "../db";
+import {
+  patients,
+  sessionNotes,
+  treatmentPlans,
+  appointments,
+} from "../../drizzle/schema";
+import { eq, desc } from "drizzle-orm";
 
 /**
- * Car Assistant Router - Intelligent Data Analysis
- * Hands-free mode for psychologists to consult their internal data while driving
- * - Analyze ALL databases with intelligent queries
- * - Answer ANY question with counts, sums, percentages, calculations
- * - Know current date/time and calendar data
- * - Real-time analysis of all registered data
+ * Car Assistant Router
+ * Hands-free mode for psychologists while driving
+ * - Voice recognition (pt-BR)
+ * - Text-to-speech responses
+ * - Quick suggestions
+ * - No authentication required
  */
 
 export const carAssistantRouter = router({
   /**
-   * Process voice question with intelligent analysis of ALL databases
-   * Analyzes: patients, appointments, sessions, leads, treatment plans, time blocks
-   * Performs: counts, sums, percentages, calculations, date/time analysis
+   * Process voice input and provide quick response
+   * Designed for hands-free operation while driving
    */
-  processVoiceQuestion: publicProcedure
-    .input(z.object({ question: z.string() }))
+  processVoiceCommand: publicProcedure
+    .input(
+      z.object({
+        transcript: z.string(),
+        context: z.string().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) {
-        return {
-          success: false,
-          response: "Banco de dados indisponível",
-        };
-      }
+      // Quick response for common clinical queries
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are a clinical psychology assistant for a psychologist driving a car. 
+Provide BRIEF, CONCISE responses (1-2 sentences max) in Portuguese (Brazilian).
+Focus on quick clinical insights, technique reminders, or patient management tips.
+Responses should be safe to read aloud while driving.
+Never provide medical diagnoses - only therapeutic guidance.`,
+          },
+          {
+            role: "user",
+            content: `${input.transcript}${input.context ? `\n\nContext: ${input.context}` : ""}`,
+          },
+        ],
+      });
 
-      const psychologistId = 1; // TODO: Get from context
+      const responseText =
+        typeof response.choices[0]?.message.content === "string"
+          ? response.choices[0].message.content
+          : "Desculpe, não consegui processar sua solicitação.";
 
+      return {
+        text: responseText,
+        timestamp: new Date(),
+        shouldSpeak: true,
+      };
+    }),
+
+  /**
+   * Get quick clinical suggestions for common scenarios
+   */
+  getQuickSuggestions: publicProcedure
+    .input(
+      z.object({
+        scenario: z.enum([
+          "anxiety",
+          "depression",
+          "stress",
+          "relationship",
+          "trauma",
+          "general",
+        ]),
+      })
+    )
+    .query(async ({ input }) => {
+      const scenarios: Record<string, string> = {
+        anxiety: "Paciente apresentando sintomas de ansiedade",
+        depression: "Paciente com sintomas depressivos",
+        stress: "Paciente sob estresse significativo",
+        relationship: "Questões relacionais ou de relacionamento",
+        trauma: "Processamento de trauma ou experiência adversa",
+        general: "Consulta clínica geral",
+      };
+
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are a clinical psychology expert. Provide 3 quick therapeutic techniques or reminders for the given scenario.
+Format as bullet points. Keep each point to 1 sentence. Respond in Portuguese (Brazilian).
+Focus on evidence-based approaches (CBT, ACT, mindfulness, etc).`,
+          },
+          {
+            role: "user",
+            content: `Scenario: ${scenarios[input.scenario]}\n\nProvide quick therapeutic suggestions I can use in my next session.`,
+          },
+        ],
+      });
+
+      const suggestionsText =
+        typeof response.choices[0]?.message.content === "string"
+          ? response.choices[0].message.content
+          : "";
+
+      return {
+        scenario: input.scenario,
+        suggestions: parseSuggestions(suggestionsText),
+        timestamp: new Date(),
+      };
+    }),
+
+  /**
+   * Generate phonetic version of text for TTS
+   * Helps with pronunciation of clinical terms
+   */
+  generatePhonetic: publicProcedure
+    .input(
+      z.object({
+        text: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      // For Portuguese, we can use simple phonetic conversion
+      // In production, consider using a proper phonetic library
+      const phonetic = convertToPhonetic(input.text);
+
+      return {
+        original: input.text,
+        phonetic: phonetic,
+      };
+    }),
+
+  /**
+   * Get turbo mode suggestions (ultra-fast responses)
+   */
+  getTurboSuggestions: publicProcedure
+    .input(
+      z.object({
+        keyword: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      // Turbo mode: pre-computed quick responses
+      const turboResponses: Record<string, string[]> = {
+        "técnica de respiração":
+          [
+            "Respiração 4-7-8: inspire por 4, segure por 7, expire por 8",
+            "Respiração diafragmática: inspire pelo nariz, expire pela boca",
+            "Respiração alternada: feche uma narina, inspire, troque",
+          ],
+        "técnica de relaxamento": [
+          "Relaxamento progressivo: tense e solte cada grupo muscular",
+          "Visualização guiada: imagine um lugar seguro e calmo",
+          "Escaneamento corporal: observe sensações do corpo",
+        ],
+        "técnica cognitiva": [
+          "Reestruturação cognitiva: questione pensamentos automáticos",
+          "Registro de pensamentos: escreva pensamento, evidência, alternativa",
+          "Detecção de distorções: identifique catastrofização, generalização",
+        ],
+        "técnica comportamental": [
+          "Exposição gradual: enfrente medos em pequenos passos",
+          "Ativação comportamental: aumente atividades prazerosas",
+          "Dessensibilização: reduza ansiedade através de exposição",
+        ],
+      };
+
+      const suggestions =
+        turboResponses[input.keyword.toLowerCase()] ||
+        turboResponses["técnica geral"] ||
+        [
+          "Consulte o histórico do paciente para técnicas anteriormente eficazes",
+          "Considere a abordagem terapêutica preferida do paciente",
+          "Adapte a técnica ao contexto e apresentação atual",
+        ];
+
+      return {
+        keyword: input.keyword,
+        suggestions: suggestions,
+        turboMode: true,
+      };
+    }),
+
+  /**
+   * Get comprehensive patient analysis based on session history
+   * Analyzes all sessions and provides AI-powered recommendations
+   */
+  getPatientAnalysis: publicProcedure
+    .input(
+      z.object({
+        patientId: z.number(),
+        patientName: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
       try {
-        // Get current date/time
-        const now = new Date();
-        const today = new Date(now);
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        // Get psychologist info
-        const psychologist = await db
-          .select()
-          .from(users)
-          .where(eq(users.id, psychologistId))
-          .limit(1);
-
-        if (!psychologist.length) {
-          return {
-            success: false,
-            response: "Psicólogo não encontrado",
-          };
+        const db = await getDb();
+        if (!db) {
+          return { error: "Database not available" };
         }
 
-        // Get ALL data from database for comprehensive analysis
-      const allPatients = await db
-        .select()
-        .from(patients)
-        .where(eq(patients.userId, psychologistId));
+        // Get patient data
+        const patientResults = await (db as any)
+          .select()
+          .from(patients)
+          .where(eq(patients.id, input.patientId));
 
-      const allAppointments = await db
-        .select()
-        .from(appointments)
-        .where(eq(appointments.userId, psychologistId));
+        const patient = patientResults[0];
+        if (!patient) {
+          return { error: "Paciente não encontrado" };
+        }
 
-        const todayAppointments = allAppointments.filter((a) => {
-          const aptDate = new Date(a.startTime);
-          aptDate.setHours(0, 0, 0, 0);
-          return aptDate.getTime() === today.getTime();
-        });
+        // Get ALL sessions for this patient
+        const allSessions = await (db as any)
+          .select()
+          .from(sessionNotes)
+          .where(eq(sessionNotes.patientId, input.patientId))
+          .orderBy(desc(sessionNotes.createdAt));
 
-      const allSessions = await db
-        .select()
-        .from(sessionNotes)
-        .where(eq(sessionNotes.userId, psychologistId));
+        // Get treatment plans
+        const treatmentPlansData = await (db as any)
+          .select()
+          .from(treatmentPlans)
+          .where(eq(treatmentPlans.patientId, input.patientId));
 
-      const allLeads = await db
-        .select()
-        .from(leads)
-        .where(eq(leads.userId, psychologistId));
-
-      const allTreatmentPlans = await db
-        .select()
-        .from(treatmentPlans);
-
-      const allInteractions = await db
-        .select()
-        .from(leadInteractions);
-
-        // Calculate statistics
-        const patientStats = {
-          total: allPatients.length,
-        active: allPatients.filter((p) => p.status === "active").length,
-        inactive: allPatients.filter((p) => p.status === "inactive").length,
-        waitlist: allPatients.filter((p) => p.status === "waitlist").length,
-        };
-
-        const appointmentStats = {
-          total: allAppointments.length,
-          today: todayAppointments.length,
-        confirmed: allAppointments.filter((a) => a.status === "confirmed").length,
-        scheduled: allAppointments.filter((a) => a.status === "scheduled").length,
-        done: allAppointments.filter((a) => a.status === "done").length,
-          confirmationRate:
-            allAppointments.length > 0
-              ? Math.round(
-                  (allAppointments.filter((a) => a.status === "done").length /
-                    allAppointments.length) *
-                    100
-                )
-              : 0,
-        };
-
-        const leadStats = {
-          total: allLeads.length,
-        prospect: allLeads.filter((l) => l.stage === "prospect").length,
-        converted: allLeads.filter((l) => l.stage === "converted").length,
-        conversionRate:
-          allLeads.length > 0
-            ? Math.round(
-                (allLeads.filter((l) => l.stage === "converted").length /
-                    allLeads.length) *
-                    100
-                )
-              : 0,
-          bySource: {
-            whatsapp: allLeads.filter((l) => l.source === "whatsapp").length,
-            instagram: allLeads.filter((l) => l.source === "instagram").length,
-            site: allLeads.filter((l) => l.source === "site").length,
-            telegram: allLeads.filter((l) => l.source === "telegram").length,
-          },
-        };
-
-        const sessionStats = {
-          total: allSessions.length,
-          thisMonth: allSessions.filter((s) => {
-            const sDate = new Date(s.createdAt);
-            return (
-              sDate.getMonth() === now.getMonth() &&
-              sDate.getFullYear() === now.getFullYear()
-            );
-          }).length,
-        };
-
-        // Find next appointment
-        const nextAppointment = allAppointments
-          .filter((a) => new Date(a.startTime) > now)
-          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-          .slice(0, 1)[0];
-
-        // Build comprehensive context for LLM
-        const context = `
-CONTEXTO COMPLETO - ${new Date().toLocaleString("pt-BR")}
-
-ESTATÍSTICAS DE PACIENTES:
-- Total: ${patientStats.total}
-- Ativos: ${patientStats.active}
-- Inativos: ${patientStats.inactive}
-- Aguardando: ${patientStats.waitlist}
-
-ESTATÍSTICAS DE CONSULTAS:
-- Total: ${appointmentStats.total}
-- Hoje: ${appointmentStats.today}
-- Agendadas: ${appointmentStats.scheduled}
-- Concluídas: ${appointmentStats.done}
-- Confirmadas: ${appointmentStats.confirmed}
-- Taxa de conclusão: ${appointmentStats.confirmationRate}%
-
-PRÓXIMA CONSULTA:
-${
-  nextAppointment
-    ? `- ${nextAppointment.title} em ${new Date(nextAppointment.startTime).toLocaleString("pt-BR")}`
-    : "- Nenhuma consulta agendada"
-}
-
-ESTATÍSTICAS DE LEADS:
-- Total: ${leadStats.total}
-- Prospects: ${leadStats.prospect}
-- Convertidos: ${leadStats.converted}
-- Taxa de conversão: ${leadStats.conversionRate}%
-- Por fonte: WhatsApp (${leadStats.bySource.whatsapp}), Instagram (${leadStats.bySource.instagram}), Site (${leadStats.bySource.site}), Telegram (${leadStats.bySource.telegram})
-
-SESSÕES:
-- Total: ${sessionStats.total}
-- Este mês: ${sessionStats.thisMonth}
-
-PLANOS DE TRATAMENTO:
-- Total: ${allTreatmentPlans.length}
-
-INTERAÇÕES COM LEADS:
-- Total: ${allInteractions.length}
-
-PACIENTES RECENTES:
-${allPatients
-  .slice(0, 5)
-  .map((p) => `- ${p.name} (${p.status}): ${p.phone}`)
-  .join("\n")}
-
-PERGUNTA DO USUÁRIO: ${input.question}
-
-IMPORTANTE: Responda APENAS com os dados solicitados. NAO mencione nomes de pessoas ou personalizacoes. Seja breve e objetivo. Exemplo: Se perguntarem 'Quantos pacientes?', responda apenas '14 pacientes.'
-Se a pergunta pedir contagens, somas, percentuais ou cálculos, use os dados fornecidos.
-Se pedir informações sobre data/hora, use: ${now.toLocaleString("pt-BR")}
-`;
-
-        // Call LLM with comprehensive context
-        const response = await invokeLLM({
-          messages: [
-            {
-              role: "user",
-              content: context,
-            },
-          ],
-        });
-
-        const responseText =
-          response.choices[0]?.message?.content || "Desculpe, não consegui processar sua pergunta.";
+        // Compile analysis
+        const totalSessions = allSessions.length;
+        const lastSession = allSessions[0];
+        const allSummaries = allSessions.map((s: any) => s.summary).filter(Boolean);
+        const allAISuggestions = allSessions
+          .filter((s: any) => s.aiSuggestions && s.aiSuggestions.length > 0)
+          .flatMap((s: any) => s.aiSuggestions);
+        const allKeyThemes = allSessions
+          .filter((s: any) => s.keyThemes && s.keyThemes.length > 0)
+          .flatMap((s: any) => s.keyThemes);
+        const allInterventions = allSessions
+          .filter((s: any) => s.interventions && s.interventions.length > 0)
+          .flatMap((s: any) => s.interventions);
 
         return {
           success: true,
-          response: responseText,
+          patientName: patient.name,
+          patientId: patient.id,
+          totalSessions,
+          lastSessionDate: lastSession ? new Date(lastSession.createdAt).toLocaleDateString("pt-BR") : null,
+          lastSessionSummary: lastSession?.summary || null,
+          allSummaries,
+          allAISuggestions: Array.from(new Set(allAISuggestions)), // Remove duplicates
+          allKeyThemes: Array.from(new Set(allKeyThemes)),
+          allInterventions: Array.from(new Set(allInterventions)),
+          treatmentPlanCount: treatmentPlansData.length,
+          activeTreatmentPlan: treatmentPlansData.find((t: any) => t.active),
         };
       } catch (error) {
-        console.error("Error processing voice question:", error);
-        return {
-          success: false,
-          response: "Desculpe, houve um erro ao processar sua pergunta. Tente novamente.",
-        };
+        console.error("[Car Assistant] Error getting patient analysis:", error);
+        return { error: "Erro ao buscar análise do paciente" };
       }
     }),
 
   /**
-   * Get voice summary for dashboard
+   * Generate AI recommendations based on patient session history
    */
-  getVoiceSummary: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) throw new Error("Database not available");
+  generatePatientRecommendations: publicProcedure
+    .input(
+      z.object({
+        patientId: z.number(),
+        patientName: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const db = await getDb();
+        if (!db) {
+          return { error: "Database not available" };
+        }
 
-    const psychologistId = 1; // TODO: Get from context
+        // Get patient data
+        const patientResults = await (db as any)
+          .select()
+          .from(patients)
+          .where(eq(patients.id, input.patientId));
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+        const patient = patientResults[0];
+        if (!patient) {
+          return { error: "Paciente não encontrado" };
+        }
 
-    const todayApts = await db
-      .select()
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.userId, psychologistId),
-          gte(appointments.startTime, today),
-          lte(appointments.startTime, tomorrow)
-        )
-      )
-      .orderBy(appointments.startTime);
+        // Get ALL sessions
+        const allSessions = await (db as any)
+          .select()
+          .from(sessionNotes)
+          .where(eq(sessionNotes.patientId, input.patientId))
+          .orderBy(desc(sessionNotes.createdAt));
 
-    const recentPatients = await db
-      .select()
-      .from(patients)
-      .where(eq(patients.userId, psychologistId))
-      .limit(5);
+        // Get treatment plans
+        const patientTreatmentPlans = await (db as any)
+          .select()
+          .from(treatmentPlans)
+          .where(eq(treatmentPlans.patientId, input.patientId));
 
-    const activeLeads = await db
-      .select()
-      .from(leads)
-      .where(and(eq(leads.userId, psychologistId), eq(leads.stage, "prospect")))
-      .limit(5);
+        // Build context for LLM
+        const sessionContext = allSessions
+          .slice(0, 10) // Last 10 sessions
+          .map((s: any, idx: number) => {
+            const sessionDate = new Date(s.createdAt).toLocaleDateString("pt-BR");
+            return `Sessão ${idx + 1} (${sessionDate}):\n- Resumo: ${s.summary || "N/A"}\n- Temas: ${s.keyThemes?.join(", ") || "N/A"}\n- Sugestões IA: ${s.aiSuggestions?.join(", ") || "N/A"}`;
+          })
+          .join("\n\n");
 
-    return {
-      todayAppointments: todayApts.length,
-      totalPatients: recentPatients.length,
-      activeLeads: activeLeads.length,
-    };
-  }),
+        // Call LLM to generate recommendations
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `Você é um assistente clínico especializado em análise de histórico de sessões terapêuticas.
+Analise o histórico completo do paciente e gere recomendações de tratamento BREVES e DIRETAS (2-3 frases max).
+Foco em: padrões identificados, temas recorrentes, efetividade das intervenções, próximos passos.`,
+            },
+            {
+              role: "user",
+              content: `Paciente: ${patient.name}\nTotal de sessões: ${allSessions.length}\n\nHistórico:\n${sessionContext}\n\nGere recomendações para as próximas sessões.`,
+            },
+          ],
+        });
+
+        const recommendations =
+          typeof response.choices[0]?.message.content === "string"
+            ? response.choices[0].message.content
+            : "Não foi possível gerar recomendações.";
+
+        return {
+          success: true,
+          patientName: patient.name,
+          totalSessions: allSessions.length,
+          recommendations,
+          shouldSpeak: true,
+          timestamp: new Date(),
+        };
+      } catch (error) {
+        console.error("[Car Assistant] Error generating recommendations:", error);
+        return { error: "Erro ao gerar recomendações" };
+      }
+    }),
 
   /**
-   * Get today's appointments
+   * Log interaction for later analysis
    */
-  getTodayAppointments: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) throw new Error("Database not available");
+  logInteraction: publicProcedure
+    .input(
+      z.object({
+        transcript: z.string(),
+        response: z.string(),
+        duration: z.number().optional(),
+        scenario: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Log for analytics and improvement
+      // In production, this would save to database
+      console.log("[Car Assistant] Interaction logged:", {
+        timestamp: new Date(),
+        transcriptLength: input.transcript.length,
+        responseLength: input.response.length,
+        duration: input.duration,
+        scenario: input.scenario,
+      });
 
-    const psychologistId = 1; // TODO: Get from context
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const results = await db
-      .select()
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.userId, psychologistId),
-          gte(appointments.startTime, today),
-          lte(appointments.startTime, tomorrow)
-        )
-      )
-      .orderBy(appointments.startTime);
-
-    return {
-      count: results.length,
-      appointments: results.map((a) => ({
-        id: a.id,
-        title: a.title,
-        time: new Date(a.startTime).toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        type: a.type,
-        status: a.status,
-      })),
-    };
-  }),
-
-  /**
-   * Get next appointment
-   */
-  getNextAppointment: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) throw new Error("Database not available");
-
-    const psychologistId = 1; // TODO: Get from context
-
-    const now = new Date();
-    const results = await db
-      .select()
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.userId, psychologistId),
-          gte(appointments.startTime, now)
-        )
-      )
-      .orderBy(appointments.startTime)
-      .limit(1);
-
-    if (!results.length) {
       return {
-        found: false,
-        appointment: null,
+        success: true,
+        logged: true,
       };
-    }
-
-    const apt = results[0];
-    return {
-      found: true,
-      appointment: {
-        id: apt.id,
-        title: apt.title,
-        startTime: apt.startTime.toLocaleString("pt-BR"),
-        type: apt.type,
-        status: apt.status,
-      },
-    };
-  }),
-
-  /**
-   * Get lead interactions
-   */
-  getLeadInteractions: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) throw new Error("Database not available");
-
-    const results = await db
-      .select()
-      .from(leadInteractions)
-      .orderBy(desc(leadInteractions.createdAt))
-      .limit(10);
-
-    return {
-      count: results.length,
-      interactions: results.map((i) => ({
-        id: i.id,
-        type: i.type,
-        content: i.content,
-        createdAt: new Date(i.createdAt).toLocaleString("pt-BR"),
-      })),
-    };
-  }),
+    }),
 });
+
+// ═══════════════════════════════════════════════════════════
+//  HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════
+
+function parseSuggestions(text: string): string[] {
+  return text
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.replace(/^[•\-\*]\s*/, "").trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 5);
+}
+
+function convertToPhonetic(text: string): string {
+  // Simple phonetic conversion for Portuguese
+  // In production, use a proper library like 'phonetic' or 'metaphone'
+  const phonetic = text
+    .toLowerCase()
+    .replace(/ç/g, "s")
+    .replace(/ã/g, "an")
+    .replace(/õ/g, "on")
+    .replace(/ão/g, "awn")
+    .replace(/ões/g, "oens")
+    .replace(/ê/g, "e")
+    .replace(/é/g, "e")
+    .replace(/á/g, "a")
+    .replace(/à/g, "a")
+    .replace(/í/g, "i")
+    .replace(/ó/g, "o")
+    .replace(/ú/g, "u");
+
+  return phonetic;
+}

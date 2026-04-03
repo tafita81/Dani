@@ -3,7 +3,7 @@ import { z } from "zod";
 import { invokeLLM } from "../_core/llm";
 import { getDb } from "../db";
 import { sessionNotes } from "../../drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 /**
  * Clinical Assistant Router
@@ -12,21 +12,18 @@ import { eq, desc } from "drizzle-orm";
  * - AI suggestions for interventions
  * - Automatic session note generation
  * - Patient history context
- * - SAVES all analyses to database with complete information
  */
 
 export const clinicalAssistantRouter = router({
   /**
    * Analyze transcription and provide AI suggestions
    * Based on patient history and clinical best practices
-   * SAVES complete analysis to database
    */
   analyzeSpeech: protectedProcedure
     .input(
       z.object({
         patientId: z.number(),
         transcript: z.string(),
-        appointmentId: z.number().optional(),
         sessionContext: z.object({
           duration: z.number().optional(),
           mainThemes: z.array(z.string()).optional(),
@@ -82,78 +79,28 @@ Respond in Portuguese (Brazilian) with a structured format.`,
       // Parse AI response to extract structured data
       const suggestions = extractSuggestions(analysisText);
       const themes = extractThemes(analysisText);
-      
-      // Extract emotional analysis
-      const emotionalAnalysisResponse = await invokeLLM({
-        messages: [
-          {
-            role: "system",
-            content: `Analyze the emotional content in JSON format with fields: primaryEmotions, emotionalIntensity (1-10), emotionalShifts, emotionalRegulation, potentialTriggers. Respond ONLY with valid JSON.`,
-          },
-          {
-            role: "user",
-            content: input.transcript,
-          },
-        ],
-      });
-      
-      let emotionalAnalysis: any = {};
-      try {
-        const emotionalText = typeof emotionalAnalysisResponse.choices[0]?.message.content === "string"
-          ? emotionalAnalysisResponse.choices[0].message.content
-          : "{}";
-        emotionalAnalysis = JSON.parse(emotionalText);
-      } catch (e) {
-        emotionalAnalysis = { error: "Could not parse emotional analysis" };
-      }
-
-      // SAVE complete analysis to database
-      const result = await db.insert(sessionNotes).values({
-        patientId: input.patientId,
-        userId: ctx.user.id,
-        appointmentId: input.appointmentId || null,
-        transcript: input.transcript,
-        summary: extractSummary(analysisText),
-        keyThemes: themes,
-        interventions: suggestions,
-        aiSuggestions: suggestions,
-        fullAnalysis: analysisText,
-        emotionalAnalysis: emotionalAnalysis,
-        sessionType: "analysis",
-        duration: input.sessionContext?.duration || null,
-        sessionDate: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
 
       return {
         analysis: analysisText,
         suggestions,
         themes,
         timestamp: new Date(),
-        sessionId: (result as any)[0]?.id || 0,
-        saved: true,
       };
     }),
 
   /**
    * Generate automatic session notes from transcript
-   * SAVES complete notes to database
    */
   generateSessionNotes: protectedProcedure
     .input(
       z.object({
         patientId: z.number(),
         transcript: z.string(),
-        appointmentId: z.number().optional(),
         duration: z.number().optional(),
         mainThemes: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
       const response = await invokeLLM({
         messages: [
           {
@@ -182,126 +129,11 @@ Format the response as structured clinical documentation.`,
           ? response.choices[0].message.content
           : "";
 
-      const summary = extractSummary(notesText);
-      const themes = input.mainThemes || extractThemes(notesText);
-      const interventions = extractSuggestions(notesText);
-
-      // SAVE complete notes to database
-      const result = await db.insert(sessionNotes).values({
-        patientId: input.patientId,
-        userId: ctx.user.id,
-        appointmentId: input.appointmentId || null,
-        transcript: input.transcript,
-        summary: summary,
-        keyThemes: themes,
-        interventions: interventions,
-        aiSuggestions: interventions,
-        fullAnalysis: notesText,
-        sessionType: "session_notes",
-        duration: input.duration || null,
-        sessionDate: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
       return {
-        summary: summary,
+        summary: extractSummary(notesText),
         fullNotes: notesText,
-        keyThemes: themes,
+        keyThemes: input.mainThemes || extractThemes(notesText),
         timestamp: new Date(),
-        sessionId: (result as any).insertId,
-        saved: true,
-      };
-    }),
-
-  /**
-   * Get complete patient history for clinical reference
-   * Includes all past sessions, themes, techniques, and recommendations
-   */
-  getPatientHistory: protectedProcedure
-    .input(
-      z.object({
-        patientId: z.number(),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
-      // Get all patient sessions
-      const sessions = await db
-        .select()
-        .from(sessionNotes)
-        .where(eq(sessionNotes.patientId, input.patientId))
-        .orderBy((col) => col.createdAt);
-
-      // Extract and aggregate data
-      const allThemes: Record<string, number> = {};
-      const allTechniques: string[] = [];
-      const allEmotions: Record<string, number> = {};
-      let totalDuration = 0;
-
-      sessions.forEach((session) => {
-        // Count themes
-        if (session.keyThemes && Array.isArray(session.keyThemes)) {
-          session.keyThemes.forEach((theme: string) => {
-            allThemes[theme] = (allThemes[theme] || 0) + 1;
-          });
-        }
-
-        // Collect techniques
-        if (session.interventions && Array.isArray(session.interventions)) {
-          allTechniques.push(...session.interventions);
-        }
-
-        // Count emotions
-        if (session.emotionalAnalysis && typeof session.emotionalAnalysis === "object") {
-          const emotions = (session.emotionalAnalysis as any).primaryEmotions;
-          if (Array.isArray(emotions)) {
-            emotions.forEach((emotion: string) => {
-              allEmotions[emotion] = (allEmotions[emotion] || 0) + 1;
-            });
-          }
-        }
-
-        // Sum duration
-        if (session.duration) {
-          totalDuration += session.duration;
-        }
-      });
-
-      // Get top recurring themes
-      const topThemes = Object.entries(allThemes)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([theme]) => theme);
-
-      // Get unique techniques
-      const uniqueTechniques = Array.from(new Set(allTechniques)).slice(0, 5);
-
-      // Get top emotions
-      const topEmotions = Object.entries(allEmotions)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3)
-        .map(([emotion]) => emotion);
-
-      return {
-        totalSessions: sessions.length,
-        totalDuration,
-        recentSessions: sessions
-          .slice(-5)
-          .reverse()
-          .map((s) => ({
-            id: s.id,
-            date: s.sessionDate || s.createdAt,
-            summary: s.summary || "Sem resumo",
-            themes: s.keyThemes || [],
-            techniques: s.interventions || [],
-          })),
-        recurringThemes: topThemes,
-        effectiveTechniques: uniqueTechniques,
-        primaryEmotions: topEmotions,
-        recommendations: `Com base no histórico do paciente, recomenda-se focar nos temas recorrentes: ${topThemes.join(", ")}. Técnicas que funcionaram bem: ${uniqueTechniques.join(", ")}. Estados emocionais frequentes: ${topEmotions.join(", ")}.`,
       };
     }),
 

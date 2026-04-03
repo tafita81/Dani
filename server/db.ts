@@ -170,11 +170,34 @@ export async function getAppointmentsByUserId(
   const db = await getDb();
   if (!db) return [];
 
-  return db
-    .select()
+  // Buscar agendamentos com dados do paciente
+  const result = await db
+    .select({
+      id: appointments.id,
+      userId: appointments.userId,
+      patientId: appointments.patientId,
+      title: appointments.title,
+      startTime: appointments.startTime,
+      endTime: appointments.endTime,
+      type: appointments.type,
+      appointmentType: appointments.appointmentType,
+      modality: appointments.modality,
+      meetLink: appointments.meetLink,
+      notes: appointments.notes,
+      observations: appointments.observations,
+      status: appointments.status,
+      reminderSent: appointments.reminderSent,
+      createdAt: appointments.createdAt,
+      patientName: patients.name,
+      patientEmail: patients.email,
+      patientPhone: patients.phone,
+    })
     .from(appointments)
+    .leftJoin(patients, eq(appointments.patientId, patients.id))
     .where(eq(appointments.userId, userId))
     .orderBy(desc(appointments.startTime));
+
+  return result;
 }
 
 export async function getAppointmentsByPatientId(patientId: number) {
@@ -192,12 +215,35 @@ export async function getUpcomingAppointments(userId: number, limit = 10) {
   const db = await getDb();
   if (!db) return [];
 
-  return db
-    .select()
+  const result = await db
+    .select({
+      id: appointments.id,
+      userId: appointments.userId,
+      patientId: appointments.patientId,
+      title: appointments.title,
+      startTime: appointments.startTime,
+      endTime: appointments.endTime,
+      type: appointments.type,
+      appointmentType: appointments.appointmentType,
+      modality: appointments.modality,
+      meetLink: appointments.meetLink,
+      notes: appointments.notes,
+      observations: appointments.observations,
+      status: appointments.status,
+      reminderSent: appointments.reminderSent,
+      createdAt: appointments.createdAt,
+      patientName: patients.name,
+      patientEmail: patients.email,
+      patientPhone: patients.phone,
+      scheduledAt: appointments.startTime,
+    })
     .from(appointments)
+    .leftJoin(patients, eq(appointments.patientId, patients.id))
     .where(eq(appointments.userId, userId))
     .orderBy(asc(appointments.startTime))
     .limit(limit);
+
+  return result;
 }
 
 // ═══════════════════════════════════════════════════════════
